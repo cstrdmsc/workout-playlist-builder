@@ -33,14 +33,22 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    console.log('[tracks] fetching playlist tracks for', playlistId)
     const tracks = await getPlaylistTracks(session.accessToken, playlistId)
-    const trackIds = tracks.map((t) => t.id)
+    console.log('[tracks] got', tracks.length, 'tracks')
+
+    const trackIds = tracks.map((t) => t.id).filter(Boolean)
+    console.log('[tracks] fetching audio features for', trackIds.length, 'tracks')
+
     const features = await getAudioFeatures(session.accessToken, trackIds)
+    console.log('[tracks] got', features.length, 'features')
+
     const merged = mergeTracksWithFeatures(tracks, features, zones)
     const sorted = sortForWorkout(merged)
 
     return NextResponse.json({ tracks: sorted, zones })
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+    console.error('[tracks] error:', err.message, err.stack)
+    return NextResponse.json({ error: err.message, detail: err.stack }, { status: 500 })
   }
 }

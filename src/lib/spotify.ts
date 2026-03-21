@@ -1,7 +1,8 @@
 const BASE = 'https://api.spotify.com/v1'
 
 async function spotifyFetch(path: string, accessToken: string, options?: RequestInit) {
-  const res = await fetch(`${BASE}${path}`, {
+  const url = path.startsWith('http') ? path : `${BASE}${path}`
+  const res = await fetch(url, {
     ...options,
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -11,7 +12,7 @@ async function spotifyFetch(path: string, accessToken: string, options?: Request
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.error?.message ?? `Spotify API error: ${res.status}`)
+    throw new Error(`Spotify ${res.status} on ${path}: ${err.error?.message ?? res.statusText}`)
   }
   return res.json()
 }
@@ -24,7 +25,7 @@ export async function getUserPlaylists(accessToken: string) {
   while (url) {
     const data = await spotifyFetch(url, accessToken)
     playlists.push(...data.items)
-    url = data.next ? data.next.replace(BASE, '') : null
+    url = data.next ?? null
   }
 
   return playlists
@@ -38,7 +39,7 @@ export async function getPlaylistTracks(accessToken: string, playlistId: string)
   while (url) {
     const data = await spotifyFetch(url, accessToken)
     tracks.push(...data.items.map((i: any) => i.track).filter(Boolean))
-    url = data.next ? data.next.replace(BASE, '') : null
+    url = data.next ?? null
   }
 
   return tracks
