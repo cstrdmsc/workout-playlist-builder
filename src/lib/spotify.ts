@@ -51,23 +51,13 @@ export async function getUserPlaylists(accessToken: string) {
   return playlists
 }
 
-// Fetch all tracks in a playlist using client credentials to avoid user token 403s
+// Fetch all tracks in a playlist using the user's access token
 export async function getPlaylistTracks(accessToken: string, playlistId: string) {
   const tracks: any[] = []
-
-  // Try with client credentials first (avoids Development mode restrictions)
-  let token: string
-  try {
-    token = await getClientToken()
-  } catch {
-    // Fall back to user token
-    token = accessToken
-  }
-
   let url = `/playlists/${playlistId}/items?limit=100`
 
   while (url) {
-    const data = await spotifyFetch(url, token)
+    const data = await spotifyFetch(url, accessToken)
     tracks.push(...data.items.map((i: any) => i.track).filter(Boolean))
     url = data.next ?? null
   }
