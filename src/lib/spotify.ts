@@ -17,6 +17,26 @@ async function spotifyFetch(path: string, accessToken: string, options?: Request
   return res.json()
 }
 
+// Get an app-level token using Client Credentials (no user needed)
+// This is used for reading public playlist data which avoids user token 403s
+async function getClientToken(): Promise<string> {
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization:
+        'Basic ' +
+        Buffer.from(
+          `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
+        ).toString('base64'),
+    },
+    body: 'grant_type=client_credentials',
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error('Failed to get client token: ' + data.error)
+  return data.access_token
+}
+
 // Fetch all user playlists (handles pagination)
 export async function getUserPlaylists(accessToken: string) {
   const playlists: any[] = []
@@ -31,13 +51,23 @@ export async function getUserPlaylists(accessToken: string) {
   return playlists
 }
 
-// Fetch all tracks in a playlist
+// Fetch all tracks in a playlist using client credentials to avoid user token 403s
 export async function getPlaylistTracks(accessToken: string, playlistId: string) {
   const tracks: any[] = []
+
+  // Try with client credentials first (avoids Development mode restrictions)
+  let token: string
+  try {
+    token = await getClientToken()
+  } catch {
+    // Fall back to user token
+    token = accessToken
+  }
+
   let url = `/playlists/${playlistId}/tracks?limit=100`
 
   while (url) {
-    const data = await spotifyFetch(url, accessToken)
+    const data = await spotifyFetch(url, token)
     tracks.push(...data.items.map((i: any) => i.track).filter(Boolean))
     url = data.next ?? null
   }
