@@ -71,15 +71,21 @@ export async function getPlaylistTracks(accessToken: string, playlistId: string)
   return tracks
 }
 
-// Fetch BPM using ReccoBeats API — completely free, no API key, uses Spotify track IDs directly
+// Fetch BPM using ReccoBeats API — free, uses Spotify track IDs directly
 export async function getAudioFeatures(accessToken: string, trackIds: string[], tracks?: any[]) {
   if (!tracks?.length) return trackIds.map(() => null)
+
+  const RECCO_KEY = process.env.RECCOBEATS_API_KEY
 
   const features = await Promise.all(
     tracks.map(async (track) => {
       try {
+        const headers: Record<string, string> = {}
+        if (RECCO_KEY) headers['Authorization'] = `Bearer ${RECCO_KEY}`
+
         const res = await fetch(
-          `https://api.reccobeats.com/v1/track/${track.id}/audio-features`
+          `https://api.reccobeats.com/v1/track/${track.id}/audio-features`,
+          { headers }
         )
 
         if (!res.ok) {
@@ -95,7 +101,6 @@ export async function getAudioFeatures(accessToken: string, trackIds: string[], 
           return { id: track.id, tempo: Math.round(tempo), energy: data.energy ?? 0.5 }
         }
 
-        console.log('[reccobeats] no BPM for', track.name)
         return null
       } catch (e) {
         console.warn('[reccobeats] failed for', track.name, e)

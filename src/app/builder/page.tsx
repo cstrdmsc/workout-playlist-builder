@@ -270,6 +270,7 @@ function BuilderContent() {
           trackId: track.id,
           trackName: track.name,
           trackArtist: track.artists?.[0]?.name ?? '',
+          trackAlbum: track.album?.name ?? '',
         })
         const res = await fetch(`/api/bpm?${q}`)
         const data = await res.json()
