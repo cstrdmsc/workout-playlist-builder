@@ -11,8 +11,8 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const trackId = searchParams.get('trackId')
-  const trackName = searchParams.get('trackName')
-  const trackArtist = searchParams.get('trackArtist')
+  const trackName = searchParams.get('trackName') ?? ''
+  const trackArtist = searchParams.get('trackArtist') ?? ''
 
   if (!trackId || !trackName) {
     return NextResponse.json({ error: 'trackId and trackName required' }, { status: 400 })
@@ -33,56 +33,29 @@ export async function GET(req: NextRequest) {
     },
   }
 
-  const AUDD_KEY = process.env.AUDD_API_KEY
-  if (!AUDD_KEY) {
-    return NextResponse.json({ error: 'AUDD_API_KEY not configured' }, { status: 500 })
-  }
-
   try {
-    // Try AudD song search with Spotify data return
-    const body = new URLSearchParams({
-      api_token: AUDD_KEY,
-      q: `${trackName} ${trackArtist ?? ''}`.trim(),
-      return: 'spotify',
-    })
+    const query = encodeURIComponent(`${trackName} ${trackArtist}`.trim())
 
-    const res = await fetch('https://api.audd.io/findLyrics/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body,
-    })
+    // Step 1: Search Deezer for the track
+    const searchRes = await fetch(`https://api.deezer.com/search/track?q=${query}&limit=1`)
+    const searchData = await searchRes.json()
+    const deezerTrackId = searchData?.data?.[0]?.id
 
-    const data = await res.json()
-    console.log('[bpm] AudD response for', trackName, ':', JSON.stringify(data).slice(0, 200))
-
-    let bpm = 0
-
-    // Try to get BPM from Spotify data returned by AudD
-    const spotifyInfo = data?.result?.[0]?.spotify
-    if (spotifyInfo?.tempo) {
-      bpm = Math.round(spotifyInfo.tempo)
+    if (!deezerTrackId) {
+      console.log('[deezer] no match for', trackName)
+      return NextResponse.json({ trackId, bpm: 0, zone: 'unmatched' })
     }
 
-    // Fallback: try the main AudD endpoint
-    if (!bpm) {
-      const res2 = await fetch('https://api.audd.io/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          api_token: AUDD_KEY,
-          q: `${trackName} ${trackArtist ?? ''}`.trim(),
-          return: 'spotify',
-        }),
-      })
-      const data2 = await res2.json()
-      console.log('[bpm] AudD fallback for', trackName, ':', JSON.stringify(data2).slice(0, 200))
-      bpm = Math.round(data2?.result?.spotify?.tempo ?? 0)
-    }
+    // Step 2: Get full track which includes BPM field
+    const trackRes = await fetch(`https://api.deezer.com/track/${deezerTrackId}`)
+    const trackData = await trackRes.json()
+    const bpm = Math.round(trackData?.bpm ?? 0)
 
+    console.log('[deezer] BPM for', trackName, ':', bpm)
     const zone = bpm > 0 ? getZone(bpm, zones) : 'unmatched'
     return NextResponse.json({ trackId, bpm, zone })
   } catch (err: any) {
-    console.error('[bpm] error:', err.message)
+    console.error('[deezer] error:', err.message)
     return NextResponse.json({ trackId, bpm: 0, zone: 'unmatched' })
   }
 }

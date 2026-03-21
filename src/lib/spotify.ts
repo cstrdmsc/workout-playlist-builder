@@ -71,60 +71,43 @@ export async function getPlaylistTracks(accessToken: string, playlistId: string)
   return tracks
 }
 
-// Fetch audio features (BPM, energy, etc.) for up to 100 tracks at once
-// Fetch BPM using AudD API — free tier, no backlink required
+// Fetch BPM using Deezer API — completely free, no API key required
 export async function getAudioFeatures(accessToken: string, trackIds: string[], tracks?: any[]) {
   if (!tracks?.length) return trackIds.map(() => null)
-
-  const AUDD_KEY = process.env.AUDD_API_KEY
-  if (!AUDD_KEY) {
-    console.warn('[audd] AUDD_API_KEY not set')
-    return trackIds.map(() => null)
-  }
 
   const features = await Promise.all(
     tracks.map(async (track) => {
       try {
         const artist = track.artists?.[0]?.name ?? ''
         const title = track.name ?? ''
+        const query = encodeURIComponent(`${title} ${artist}`)
 
-        const res = await fetch('https://api.audd.io/findLyrics/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            api_token: AUDD_KEY,
-            q: `${title} ${artist}`,
-            return: 'spotify',
-          }),
-        })
-        const data = await res.json()
-        const spotifyData = data?.result?.[0]?.spotify
+        // Step 1: Search Deezer for the track
+        const searchRes = await fetch(
+          `https://api.deezer.com/search/track?q=${query}&limit=1`
+        )
+        const searchData = await searchRes.json()
+        const deezerTrackId = searchData?.data?.[0]?.id
 
-        if (spotifyData?.tempo) {
-          return { id: track.id, tempo: Math.round(spotifyData.tempo), energy: spotifyData.energy ?? 0.5 }
+        if (!deezerTrackId) {
+          console.log('[deezer] no match for', title)
+          return null
         }
 
-        // Fallback: try direct track lookup
-        const res2 = await fetch('https://api.audd.io/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            api_token: AUDD_KEY,
-            spotify_token: accessToken,
-            spotify_track: track.id,
-            return: 'spotify',
-          }),
-        })
-        const data2 = await res2.json()
-        const tempo = data2?.result?.spotify?.tempo ?? data2?.result?.deezer?.bpm
+        // Step 2: Get full track details which includes BPM
+        const trackRes = await fetch(`https://api.deezer.com/track/${deezerTrackId}`)
+        const trackData = await trackRes.json()
+        const bpm = trackData?.bpm
 
-        if (tempo) {
-          return { id: track.id, tempo: Math.round(tempo), energy: 0.5 }
+        if (bpm && bpm > 0) {
+          console.log('[deezer] BPM for', title, ':', bpm)
+          return { id: track.id, tempo: Math.round(bpm), energy: 0.5 }
         }
 
+        console.log('[deezer] no BPM for', title)
         return null
       } catch (e) {
-        console.warn('[audd] failed for', track.name, e)
+        console.warn('[deezer] failed for', track.name, e)
         return null
       }
     })

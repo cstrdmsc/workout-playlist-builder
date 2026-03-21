@@ -437,6 +437,12 @@ function BuilderContent() {
       </div>
 
       {previewTrack && <PreviewPlayer track={previewTrack} onClose={() => setPreviewTrack(null)} />}
+
+      <footer className="text-center py-6">
+        <p className="text-xs text-neutral-700">
+          BPM data powered by <a href="https://getsongbpm.com" target="_blank" rel="noopener noreferrer" className="hover:text-neutral-500 underline">GetSongBPM</a>
+        </p>
+      </footer>
     </main>
   )
 }
