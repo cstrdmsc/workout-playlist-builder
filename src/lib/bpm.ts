@@ -36,14 +36,13 @@ export function mergeTracksWithFeatures(
   features: any[],
   zones: ZoneConfig
 ): TrackWithBpm[] {
-  const featureMap = new Map(features.map((f) => [f?.id, f]))
+  const featureMap = new Map(features.filter(Boolean).map((f) => [f?.id, f]))
 
   return tracks
+    .filter((track) => track?.id)
     .map((track) => {
       const feature = featureMap.get(track.id)
-      if (!feature) return null
-
-      const bpm = Math.round(feature.tempo)
+      const bpm = feature ? Math.round(feature.tempo) : 0
       return {
         id: track.id,
         name: track.name,
@@ -51,12 +50,11 @@ export function mergeTracksWithFeatures(
         album: track.album,
         duration_ms: track.duration_ms,
         bpm,
-        energy: feature.energy,
-        zone: getZone(bpm, zones),
+        energy: feature?.energy ?? 0,
+        zone: bpm > 0 ? getZone(bpm, zones) : 'unmatched' as Zone,
         previewUrl: track.preview_url ?? undefined,
       }
     })
-    .filter(Boolean) as TrackWithBpm[]
 }
 
 // Sort tracks in workout order: warmup → peak → cooldown → unmatched

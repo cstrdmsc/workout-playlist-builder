@@ -34,7 +34,7 @@ export async function getUserPlaylists(accessToken: string) {
 // Fetch all tracks in a playlist
 export async function getPlaylistTracks(accessToken: string, playlistId: string) {
   const tracks: any[] = []
-  let url = `/playlists/${playlistId}/tracks?limit=100&fields=next,items(track(id,name,artists,album,duration_ms,preview_url))`
+  let url = `/playlists/${playlistId}/tracks?limit=100`
 
   while (url) {
     const data = await spotifyFetch(url, accessToken)
@@ -49,14 +49,19 @@ export async function getPlaylistTracks(accessToken: string, playlistId: string)
 export async function getAudioFeatures(accessToken: string, trackIds: string[]) {
   const features: any[] = []
 
-  // Spotify allows max 100 IDs per request
   for (let i = 0; i < trackIds.length; i += 100) {
     const chunk = trackIds.slice(i, i + 100)
-    const data = await spotifyFetch(
-      `/audio-features?ids=${chunk.join(',')}`,
-      accessToken
-    )
-    features.push(...(data.audio_features ?? []))
+    try {
+      const data = await spotifyFetch(
+        `/audio-features?ids=${chunk.join(',')}`,
+        accessToken
+      )
+      features.push(...(data.audio_features ?? []))
+    } catch (err: any) {
+      console.warn('[audio-features] failed:', err.message)
+      // Push null placeholders so track indices still line up
+      features.push(...chunk.map(() => null))
+    }
   }
 
   return features
