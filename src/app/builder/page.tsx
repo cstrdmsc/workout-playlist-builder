@@ -72,7 +72,7 @@ function BpmChart({ tracks, zones }: { tracks: TrackWithBpm[]; zones: ZoneConfig
   )
 }
 
-function SpotifyPlayer({ track, accessToken, onClose, isReady, isPaused, currentTrackId, position, duration, playTrack, togglePlay, seek }: {
+function SpotifyPlayer({ track, accessToken, onClose, isReady, isPaused, currentTrackId, position, duration, error, playTrack, togglePlay, seek }: {
   track: TrackWithPreview
   accessToken: string
   onClose: () => void
@@ -81,6 +81,7 @@ function SpotifyPlayer({ track, accessToken, onClose, isReady, isPaused, current
   currentTrackId: string
   position: number
   duration: number
+  error: string
   playTrack: (id: string) => void
   togglePlay: () => void
   seek: (ms: number) => void
@@ -140,8 +141,13 @@ function SpotifyPlayer({ track, accessToken, onClose, isReady, isPaused, current
           <span className="text-xs text-neutral-600 w-8">{Math.floor(total / 60)}:{String(total % 60).padStart(2, '0')}</span>
         </div>
 
-        {!isReady && (
-          <p className="text-xs text-neutral-600 mt-2 text-center">Connecting to Spotify player…</p>
+        {!isReady && !error && (
+          <p className="text-xs text-neutral-500 mt-2 text-center">
+            Connecting… make sure Spotify is open on any device first
+          </p>
+        )}
+        {error && (
+          <p className="text-xs text-red-400 mt-2 text-center">{error}</p>
         )}
       </div>
     </div>
@@ -260,7 +266,7 @@ function BuilderContent() {
   const playlistId = params.get('playlistId')
   const playlistName = params.get('name') ?? 'Playlist'
 
-  const { isReady, isPaused, currentTrackId, position, duration, playTrack, togglePlay, seek } =
+  const { isReady, isPaused, currentTrackId, position, duration, error: playerError, playTrack, togglePlay, seek } =
     useSpotifyPlayer(session?.accessToken)
 
   const [zones, setZones] = useState<ZoneConfig>(DEFAULT_ZONES)
@@ -489,6 +495,7 @@ function BuilderContent() {
           currentTrackId={currentTrackId}
           position={position}
           duration={duration}
+          error={playerError}
           playTrack={playTrack}
           togglePlay={togglePlay}
           seek={seek}

@@ -17,14 +17,14 @@ export function useSpotifyPlayer(accessToken: string | undefined) {
   const [duration, setDuration] = useState(0)
   const playerRef = useRef<any>(null)
   const intervalRef = useRef<NodeJS.Timeout>()
+  const deviceIdRef = useRef<string>('')
   const tokenRef = useRef<string>('')
 
-  // Keep token ref up to date
   useEffect(() => { tokenRef.current = accessToken ?? '' }, [accessToken])
+  useEffect(() => { deviceIdRef.current = deviceId }, [deviceId])
 
   function initPlayer(token: string) {
     if (!window.Spotify || playerRef.current) return
-
     console.log('[spotify] initializing player...')
 
     const spotifyPlayer = new window.Spotify.Player({
@@ -36,22 +36,14 @@ export function useSpotifyPlayer(accessToken: string | undefined) {
     spotifyPlayer.addListener('ready', ({ device_id }: { device_id: string }) => {
       console.log('[spotify] READY! device_id:', device_id)
       setDeviceId(device_id)
+      deviceIdRef.current = device_id
       setIsReady(true)
     })
 
-    spotifyPlayer.addListener('not_ready', ({ device_id }: { device_id: string }) => {
-      console.warn('[spotify] NOT ready:', device_id)
-      setIsReady(false)
-    })
-
-    spotifyPlayer.addListener('initialization_error', ({ message }: any) =>
-      console.error('[spotify] init error:', message))
-
-    spotifyPlayer.addListener('authentication_error', ({ message }: any) =>
-      console.error('[spotify] auth error:', message))
-
-    spotifyPlayer.addListener('account_error', ({ message }: any) =>
-      console.error('[spotify] account error (Premium needed):', message))
+    spotifyPlayer.addListener('not_ready', () => setIsReady(false))
+    spotifyPlayer.addListener('initialization_error', ({ message }: any) => console.error('[spotify] init error:', message))
+    spotifyPlayer.addListener('authentication_error', ({ message }: any) => console.error('[spotify] auth error:', message))
+    spotifyPlayer.addListener('account_error', ({ message }: any) => console.error('[spotify] Premium required:', message))
 
     spotifyPlayer.addListener('player_state_changed', (state: any) => {
       if (!state) return
@@ -69,7 +61,7 @@ export function useSpotifyPlayer(accessToken: string | undefined) {
     })
 
     spotifyPlayer.connect().then((success: boolean) => {
-      console.log('[spotify] connect result:', success)
+      console.log('[spotify] connect:', success ? 'OK' : 'FAILED')
     })
 
     playerRef.current = spotifyPlayer
@@ -77,16 +69,13 @@ export function useSpotifyPlayer(accessToken: string | undefined) {
 
   useEffect(() => {
     if (!accessToken) return
-
     const token = accessToken
 
     if (window.Spotify) {
-      // SDK already loaded — init right away
       initPlayer(token)
     } else {
-      // Set callback before loading script
       window.onSpotifyWebPlaybackSDKReady = () => {
-        console.log('[spotify] SDK script ready')
+        console.log('[spotify] SDK ready')
         initPlayer(token)
       }
       if (!document.getElementById('spotify-sdk')) {
@@ -109,30 +98,24 @@ export function useSpotifyPlayer(accessToken: string | undefined) {
     }
   }, [accessToken])
 
+  // Play via server-side proxy to avoid 401s from expired browser tokens
   async function playTrack(trackId: string) {
-    const token = tokenRef.current
-    if (!deviceId || !token) {
-      console.warn('[spotify] not ready — deviceId:', deviceId, 'token:', !!token)
+    const dId = deviceIdRef.current
+    if (!dId) {
+      console.warn('[spotify] no device ID yet')
       return
     }
+    console.log('[spotify] playing via proxy, device:', dId, 'track:', trackId)
     try {
-      // Transfer playback to our device
-      await fetch('https://api.spotify.com/v1/me/player', {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_ids: [deviceId], play: false }),
+      const res = await fetch('/api/play', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId: dId, trackId }),
       })
-      await new Promise((r) => setTimeout(r, 300))
-
-      // Play the track
-      const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uris: [`spotify:track:${trackId}`] }),
-      })
-      console.log('[spotify] play response:', res.status)
+      const data = await res.json()
+      console.log('[spotify] proxy response:', data)
     } catch (e) {
-      console.error('[spotify] play failed:', e)
+      console.error('[spotify] proxy play failed:', e)
     }
   }
 
