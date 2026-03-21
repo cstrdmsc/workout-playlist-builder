@@ -537,7 +537,7 @@ function BuilderContent() {
                         onPreview={setPreviewTrack}
                         onPlay={(t) => {
                           setPreviewTrack(t)
-                          playTrack(t.id)
+                          setTimeout(() => playTrack(t.id), 100)
                         }}
                       />
                     ))}
