@@ -176,8 +176,8 @@ function UnmatchedBanner({ count, included, onInclude, onExclude }: {
   )
 }
 
-function SortableTrackRow({ track, index, onPreview }: {
-  track: TrackWithPreview; index: number; onPreview: (t: TrackWithPreview) => void
+function SortableTrackRow({ track, index, onPreview, onPlay }: {
+  track: TrackWithPreview; index: number; onPreview: (t: TrackWithPreview) => void; onPlay: (t: TrackWithPreview) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: track.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
@@ -203,9 +203,9 @@ function SortableTrackRow({ track, index, onPreview }: {
         style={{ background: colors.bg + '33', color: colors.dot }}>{track.bpm} BPM</span>
       <span className="text-xs px-2 py-0.5 rounded-full capitalize flex-shrink-0 hidden sm:block"
         style={{ background: colors.bg + '22', color: colors.text + 'cc' }}>{track.zone}</span>
-      <button onClick={() => onPreview(track)}
+      <button onClick={() => onPlay(track)}
         className="opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity text-neutral-500 hover:text-white flex-shrink-0"
-        aria-label="Preview"><PlayIcon /></button>
+        aria-label="Play"><PlayIcon /></button>
     </div>
   )
 }
@@ -420,19 +420,26 @@ function BuilderContent() {
 
       {/* Success banner */}
       {savedUrl && (
-        <div className="bg-[#1DB954] text-black px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-            <span className="text-sm font-semibold">Playlist saved to your Spotify!</span>
+        <div className="bg-[#1DB954] text-black px-5 py-2.5 flex items-center justify-between gap-4">
+          <span className="text-xs font-medium">Playlist saved to your Spotify!</span>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            <a
+              href={savedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setSavedUrl('')}
+              className="text-xs font-semibold underline underline-offset-2 opacity-80 hover:opacity-100"
+            >
+              Open in Spotify ↗
+            </a>
+            <button
+              onClick={() => setSavedUrl('')}
+              className="text-black opacity-60 hover:opacity-100 transition-opacity text-sm font-bold leading-none"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
           </div>
-          <a
-            href={savedUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm font-bold underline underline-offset-2 flex-shrink-0"
-          >
-            Open in Spotify ↗
-          </a>
         </div>
       )}
 
@@ -523,7 +530,16 @@ function BuilderContent() {
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                   <SortableContext items={filtered.map((t) => t.id)} strategy={verticalListSortingStrategy}>
                     {filtered.map((track, i) => (
-                      <SortableTrackRow key={track.id} track={track} index={i + 1} onPreview={setPreviewTrack} />
+                      <SortableTrackRow
+                        key={track.id}
+                        track={track}
+                        index={i + 1}
+                        onPreview={setPreviewTrack}
+                        onPlay={(t) => {
+                          setPreviewTrack(t)
+                          playTrack(t.id)
+                        }}
+                      />
                     ))}
                   </SortableContext>
                 </DndContext>
