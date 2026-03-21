@@ -145,9 +145,6 @@ function SpotifyPlayer({ track, accessToken, onClose, isReady, isPaused, current
             Connecting… make sure Spotify is open on any device first
           </p>
         )}
-        {error && (
-          <p className="text-xs text-red-400 mt-2 text-center">{error}</p>
-        )}
       </div>
     </div>
   )
