@@ -41,7 +41,7 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-black text-white">
-      <header className="flex items-center justify-between px-8 py-5 border-b border-neutral-800">
+      <header className="flex items-center justify-between px-4 sm:px-8 py-5 border-b border-neutral-800">
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-[#1DB954]" />
           <span className="font-semibold text-sm">Workout playlist builder</span>
@@ -57,7 +57,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-8 py-10">
+      <div className="max-w-4xl mx-auto px-4 sm:px-8 py-8">
         <h2 className="text-xl font-semibold mb-1">Choose a playlist</h2>
         <p className="text-neutral-400 text-sm mb-8">
           Pick the playlist you want to sort by BPM.
@@ -69,7 +69,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           {playlists.map((pl) => (
             <button
               key={pl.id}

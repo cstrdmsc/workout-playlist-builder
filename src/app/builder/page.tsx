@@ -13,6 +13,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TrackWithBpm, ZoneConfig, DEFAULT_ZONES, ZONE_COLORS, Zone, formatDuration } from '@/lib/bpm'
+import { useSpotifyPlayer } from '@/lib/useSpotifyPlayer'
 
 type TrackWithPreview = TrackWithBpm & { previewUrl?: string }
 
@@ -71,34 +72,44 @@ function BpmChart({ tracks, zones }: { tracks: TrackWithBpm[]; zones: ZoneConfig
   )
 }
 
-function PreviewPlayer({ track, onClose }: { track: TrackWithPreview; onClose: () => void }) {
-  const audioRef = useRef<HTMLAudioElement>(null)
-  const [playing, setPlaying] = useState(false)
-  const [progress, setProgress] = useState(0)
+function SpotifyPlayer({ track, accessToken, onClose, isReady, isPaused, currentTrackId, position, duration, playTrack, togglePlay, seek }: {
+  track: TrackWithPreview
+  accessToken: string
+  onClose: () => void
+  isReady: boolean
+  isPaused: boolean
+  currentTrackId: string
+  position: number
+  duration: number
+  playTrack: (id: string) => void
+  togglePlay: () => void
+  seek: (ms: number) => void
+}) {
   const colors = ZONE_COLORS[track.zone]
   const img = track.album.images?.[0]?.url
+  const isPlaying = currentTrackId === track.id && !isPaused
+  const progress = duration > 0 && currentTrackId === track.id ? (position / duration) * 100 : 0
+  const elapsed = currentTrackId === track.id ? Math.floor(position / 1000) : 0
+  const total = Math.floor(duration / 1000)
 
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio || !track.previewUrl) return
-    audio.play().then(() => setPlaying(true)).catch(() => {})
-    const onTime = () => setProgress((audio.currentTime / (audio.duration || 30)) * 100)
-    const onEnd = () => setPlaying(false)
-    audio.addEventListener('timeupdate', onTime)
-    audio.addEventListener('ended', onEnd)
-    return () => { audio.pause(); audio.removeEventListener('timeupdate', onTime); audio.removeEventListener('ended', onEnd) }
-  }, [track.id, track.previewUrl])
+  function handlePlay() {
+    if (currentTrackId === track.id) {
+      togglePlay()
+    } else {
+      playTrack(track.id)
+    }
+  }
 
-  function toggle() {
-    const audio = audioRef.current
-    if (!audio) return
-    if (playing) { audio.pause(); setPlaying(false) } else { audio.play(); setPlaying(true) }
+  function handleSeek(e: React.MouseEvent<HTMLDivElement>) {
+    if (!duration || currentTrackId !== track.id) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const pct = (e.clientX - rect.left) / rect.width
+    seek(Math.floor(pct * duration))
   }
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[500px] max-w-[calc(100vw-2rem)]">
-      {track.previewUrl && <audio ref={audioRef} src={track.previewUrl} preload="auto" />}
-      <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-4 shadow-2xl">
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[520px] max-w-[calc(100vw-2rem)]">
+      <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-4">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-lg overflow-hidden relative bg-neutral-800 flex-shrink-0">
             {img && <Image src={img} alt={track.name} fill className="object-cover" />}
@@ -109,19 +120,28 @@ function PreviewPlayer({ track, onClose }: { track: TrackWithPreview; onClose: (
           </div>
           <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
             style={{ background: colors.bg + '33', color: colors.dot }}>{track.bpm} BPM</span>
-          <button onClick={toggle} disabled={!track.previewUrl}
-            className="w-9 h-9 rounded-full border border-neutral-700 flex items-center justify-center hover:bg-neutral-800 transition-colors disabled:opacity-30 flex-shrink-0">
-            {playing ? <PauseIcon /> : <PlayIcon />}
+          <button
+            onClick={handlePlay}
+            disabled={!isReady}
+            className="w-9 h-9 rounded-full border border-neutral-700 flex items-center justify-center hover:bg-neutral-800 transition-colors disabled:opacity-30 flex-shrink-0"
+          >
+            {isPlaying ? <PauseIcon /> : <PlayIcon />}
           </button>
           <button onClick={onClose} className="text-neutral-500 hover:text-white transition-colors flex-shrink-0">
             <CloseIcon />
           </button>
         </div>
-        <div className="mt-3 h-1 bg-neutral-800 rounded-full overflow-hidden">
-          <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: colors.dot }} />
+
+        <div className="mt-3 flex items-center gap-2">
+          <span className="text-xs text-neutral-600 w-8 text-right">{Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')}</span>
+          <div className="flex-1 h-1 bg-neutral-800 rounded-full overflow-hidden cursor-pointer" onClick={handleSeek}>
+            <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: colors.dot }} />
+          </div>
+          <span className="text-xs text-neutral-600 w-8">{Math.floor(total / 60)}:{String(total % 60).padStart(2, '0')}</span>
         </div>
-        {!track.previewUrl && (
-          <p className="text-xs text-neutral-600 mt-2 text-center">No 30s preview available for this track</p>
+
+        {!isReady && (
+          <p className="text-xs text-neutral-600 mt-2 text-center">Connecting to Spotify player…</p>
         )}
       </div>
     </div>
@@ -176,13 +196,13 @@ function SortableTrackRow({ track, index, onPreview }: {
         <p className="text-sm font-medium truncate">{track.name}</p>
         <p className="text-xs text-neutral-500 truncate">{track.artists.map((a: any) => a.name).join(', ')}</p>
       </div>
-      <span className="text-xs text-neutral-500 flex-shrink-0">{formatDuration(track.duration_ms)}</span>
+      <span className="text-xs text-neutral-500 flex-shrink-0 hidden sm:block">{formatDuration(track.duration_ms)}</span>
       <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
         style={{ background: colors.bg + '33', color: colors.dot }}>{track.bpm} BPM</span>
-      <span className="text-xs px-2 py-0.5 rounded-full capitalize flex-shrink-0"
+      <span className="text-xs px-2 py-0.5 rounded-full capitalize flex-shrink-0 hidden sm:block"
         style={{ background: colors.bg + '22', color: colors.text + 'cc' }}>{track.zone}</span>
       <button onClick={() => onPreview(track)}
-        className="opacity-0 group-hover:opacity-100 transition-opacity text-neutral-500 hover:text-white flex-shrink-0"
+        className="opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity text-neutral-500 hover:text-white flex-shrink-0"
         aria-label="Preview"><PlayIcon /></button>
     </div>
   )
@@ -234,11 +254,14 @@ function CloseIcon() {
 }
 
 function BuilderContent() {
-  const { status } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
   const params = useSearchParams()
   const playlistId = params.get('playlistId')
   const playlistName = params.get('name') ?? 'Playlist'
+
+  const { isReady, isPaused, currentTrackId, position, duration, playTrack, togglePlay, seek } =
+    useSpotifyPlayer(session?.accessToken)
 
   const [zones, setZones] = useState<ZoneConfig>(DEFAULT_ZONES)
   const [tracks, setTracks] = useState<TrackWithPreview[]>([])
@@ -356,40 +379,40 @@ function BuilderContent() {
 
   return (
     <main className="min-h-screen bg-black text-white pb-32">
-      <header className="flex items-center justify-between px-8 py-5 border-b border-neutral-800">
-        <div className="flex items-center gap-3">
-          <button onClick={() => router.push('/dashboard')} className="text-neutral-500 hover:text-white transition-colors text-sm">← Back</button>
-          <div className="w-px h-4 bg-neutral-700" />
-          <span className="text-sm font-medium truncate max-w-xs">{playlistName}</span>
+      <header className="flex items-center justify-between px-4 sm:px-8 py-4 border-b border-neutral-800 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <button onClick={() => router.push('/dashboard')} className="text-neutral-500 hover:text-white transition-colors text-sm flex-shrink-0">← Back</button>
+          <div className="w-px h-4 bg-neutral-700 flex-shrink-0" />
+          <span className="text-sm font-medium truncate">{playlistName}</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-shrink-0">
           {savedUrl && (
-            <a href={savedUrl} target="_blank" rel="noopener noreferrer" className="text-[#1DB954] text-sm hover:underline">Open in Spotify ↗</a>
+            <a href={savedUrl} target="_blank" rel="noopener noreferrer" className="text-[#1DB954] text-xs hover:underline hidden sm:block">Open in Spotify ↗</a>
           )}
           {!loading && tracks.length > 0 && (
             <button
               onClick={handleDetectBpm}
               disabled={analyzing}
-              className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-40 text-white text-sm px-4 py-2 rounded-full transition-colors border border-neutral-700"
+              className="flex items-center gap-1.5 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-40 text-white text-xs sm:text-sm px-3 sm:px-4 py-2 rounded-full transition-colors border border-neutral-700"
             >
               {analyzing ? (
-                <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />Analyzing… {analyzeProgress}%</>
-              ) : '⚡ Detect BPM'}
+                <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /><span className="hidden sm:inline">Analyzing…</span> {analyzeProgress}%</>
+              ) : <><span>⚡</span><span className="hidden sm:inline"> Detect BPM</span></>}
             </button>
           )}
           <button onClick={handleSave} disabled={saving || loading || tracks.length === 0}
-            className="bg-[#1DB954] hover:bg-[#1ed760] disabled:opacity-40 text-black font-semibold text-sm px-5 py-2 rounded-full transition-colors">
-            {saving ? 'Saving...' : 'Save to Spotify'}
+            className="bg-[#1DB954] hover:bg-[#1ed760] disabled:opacity-40 text-black font-semibold text-xs sm:text-sm px-3 sm:px-5 py-2 rounded-full transition-colors">
+            {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto px-8 py-8 space-y-6">
+      <div className="max-w-4xl mx-auto px-4 sm:px-8 py-6 space-y-6">
         {error && <div className="bg-red-900/30 border border-red-800 text-red-300 text-sm px-4 py-3 rounded-lg">{error}</div>}
 
         <div>
           <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-widest mb-4">Workout zones</h3>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {(['warmup', 'peak', 'cooldown'] as const).map((zone) => (
               <ZoneCard key={zone} zone={zone} config={zones[zone]} count={zoneCounts[zone]}
                 onChange={(min, max) => setZones((z) => ({ ...z, [zone]: { min, max } }))} />
@@ -402,14 +425,14 @@ function BuilderContent() {
           onInclude={() => setIncludeUnmatched(true)} onExclude={() => setIncludeUnmatched(false)} />}
 
         <div>
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-widest">
               Sorted tracklist · {filtered.length} tracks
             </h3>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 flex-wrap">
               {(['all', 'warmup', 'peak', 'cooldown'] as const).map((f) => (
                 <button key={f} onClick={() => setActiveFilter(f)}
-                  className={`text-xs px-3 py-1 rounded-full border transition-colors capitalize ${activeFilter === f ? 'bg-neutral-700 border-neutral-600 text-white' : 'border-neutral-800 text-neutral-500 hover:text-neutral-300'}`}>
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-colors capitalize ${activeFilter === f ? 'bg-neutral-700 border-neutral-600 text-white' : 'border-neutral-800 text-neutral-500 hover:text-neutral-300'}`}>
                   {f}
                 </button>
               ))}
@@ -437,11 +460,25 @@ function BuilderContent() {
         </div>
       </div>
 
-      {previewTrack && <PreviewPlayer track={previewTrack} onClose={() => setPreviewTrack(null)} />}
+      {previewTrack && (
+        <SpotifyPlayer
+          track={previewTrack}
+          accessToken={session?.accessToken ?? ''}
+          onClose={() => setPreviewTrack(null)}
+          isReady={isReady}
+          isPaused={isPaused}
+          currentTrackId={currentTrackId}
+          position={position}
+          duration={duration}
+          playTrack={playTrack}
+          togglePlay={togglePlay}
+          seek={seek}
+        />
+      )}
 
       <footer className="text-center py-6">
         <p className="text-xs text-neutral-700">
-          BPM data powered by <a href="https://getsongbpm.com" target="_blank" rel="noopener noreferrer" className="hover:text-neutral-500 underline">GetSongBPM</a>
+          BPM data powered by <a href="https://deezer.com" target="_blank" rel="noopener noreferrer" className="hover:text-neutral-500 underline">Deezer</a>
         </p>
       </footer>
     </main>
