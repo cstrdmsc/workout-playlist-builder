@@ -72,10 +72,65 @@ export async function getPlaylistTracks(accessToken: string, playlistId: string)
 }
 
 // Fetch audio features (BPM, energy, etc.) for up to 100 tracks at once
-// BPM is now analyzed client-side using track preview URLs
-// This function is kept for compatibility but returns empty features
+// Fetch BPM using AudD API — free tier, no backlink required
 export async function getAudioFeatures(accessToken: string, trackIds: string[], tracks?: any[]) {
-  return trackIds.map(() => null)
+  if (!tracks?.length) return trackIds.map(() => null)
+
+  const AUDD_KEY = process.env.AUDD_API_KEY
+  if (!AUDD_KEY) {
+    console.warn('[audd] AUDD_API_KEY not set')
+    return trackIds.map(() => null)
+  }
+
+  const features = await Promise.all(
+    tracks.map(async (track) => {
+      try {
+        const artist = track.artists?.[0]?.name ?? ''
+        const title = track.name ?? ''
+
+        const res = await fetch('https://api.audd.io/findLyrics/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            api_token: AUDD_KEY,
+            q: `${title} ${artist}`,
+            return: 'spotify',
+          }),
+        })
+        const data = await res.json()
+        const spotifyData = data?.result?.[0]?.spotify
+
+        if (spotifyData?.tempo) {
+          return { id: track.id, tempo: Math.round(spotifyData.tempo), energy: spotifyData.energy ?? 0.5 }
+        }
+
+        // Fallback: try direct track lookup
+        const res2 = await fetch('https://api.audd.io/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            api_token: AUDD_KEY,
+            spotify_token: accessToken,
+            spotify_track: track.id,
+            return: 'spotify',
+          }),
+        })
+        const data2 = await res2.json()
+        const tempo = data2?.result?.spotify?.tempo ?? data2?.result?.deezer?.bpm
+
+        if (tempo) {
+          return { id: track.id, tempo: Math.round(tempo), energy: 0.5 }
+        }
+
+        return null
+      } catch (e) {
+        console.warn('[audd] failed for', track.name, e)
+        return null
+      }
+    })
+  )
+
+  return features
 }
 
 // Create a new playlist and add tracks
