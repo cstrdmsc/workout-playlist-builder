@@ -60,8 +60,9 @@ export async function getPlaylistTracks(accessToken: string, playlistId: string)
     const data = await spotifyFetch(url, accessToken)
     console.log('[tracks] raw item sample:', JSON.stringify(data.items?.[0]).slice(0, 400))
     const mapped = data.items
-      .map((i: any) => i.item ?? i.track)  // new API uses 'item', old used 'track'
+      .map((i: any) => i.item ?? i.track)
       .filter((t: any) => t && t.id && t.type === 'track')
+      .map((t: any) => ({ ...t, previewUrl: t.preview_url ?? null }))
     console.log('[tracks] mapped', mapped.length, 'of', data.items?.length, 'items')
     tracks.push(...mapped)
     url = data.next ?? null
@@ -71,25 +72,10 @@ export async function getPlaylistTracks(accessToken: string, playlistId: string)
 }
 
 // Fetch audio features (BPM, energy, etc.) for up to 100 tracks at once
-export async function getAudioFeatures(accessToken: string, trackIds: string[]) {
-  const features: any[] = []
-
-  for (let i = 0; i < trackIds.length; i += 100) {
-    const chunk = trackIds.slice(i, i + 100)
-    try {
-      const data = await spotifyFetch(
-        `/audio-features?ids=${chunk.join(',')}`,
-        accessToken
-      )
-      features.push(...(data.audio_features ?? []))
-    } catch (err: any) {
-      console.warn('[audio-features] failed:', err.message)
-      // Push null placeholders so track indices still line up
-      features.push(...chunk.map(() => null))
-    }
-  }
-
-  return features
+// BPM is now analyzed client-side using track preview URLs
+// This function is kept for compatibility but returns empty features
+export async function getAudioFeatures(accessToken: string, trackIds: string[], tracks?: any[]) {
+  return trackIds.map(() => null)
 }
 
 // Create a new playlist and add tracks

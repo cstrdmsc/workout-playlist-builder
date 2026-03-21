@@ -13,6 +13,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TrackWithBpm, ZoneConfig, DEFAULT_ZONES, ZONE_COLORS, Zone, formatDuration } from '@/lib/bpm'
+import { useBpmAnalyzer } from '@/lib/useBpmAnalyzer'
 
 type TrackWithPreview = TrackWithBpm & { previewUrl?: string }
 
@@ -249,6 +250,7 @@ function BuilderContent() {
   const [activeFilter, setActiveFilter] = useState<Zone | 'all'>('all')
   const [includeUnmatched, setIncludeUnmatched] = useState(false)
   const [previewTrack, setPreviewTrack] = useState<TrackWithPreview | null>(null)
+  const { analyzeTracks, analyzing, progress } = useBpmAnalyzer()
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -324,6 +326,17 @@ function BuilderContent() {
         <div className="flex items-center gap-3">
           {savedUrl && (
             <a href={savedUrl} target="_blank" rel="noopener noreferrer" className="text-[#1DB954] text-sm hover:underline">Open in Spotify ↗</a>
+          )}
+          {!loading && tracks.length > 0 && (
+            <button
+              onClick={() => analyzeTracks(tracks as any, zones, setTracks as any)}
+              disabled={analyzing}
+              className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-40 text-white text-sm px-4 py-2 rounded-full transition-colors border border-neutral-700"
+            >
+              {analyzing ? (
+                <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />Analyzing… {progress}%</>
+              ) : '⚡ Detect BPM'}
+            </button>
           )}
           <button onClick={handleSave} disabled={saving || loading || tracks.length === 0}
             className="bg-[#1DB954] hover:bg-[#1ed760] disabled:opacity-40 text-black font-semibold text-sm px-5 py-2 rounded-full transition-colors">

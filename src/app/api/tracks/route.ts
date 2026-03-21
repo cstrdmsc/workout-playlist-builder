@@ -33,15 +33,11 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    console.log('[tracks] fetching playlist tracks for', playlistId)
     const tracks = await getPlaylistTracks(session.accessToken, playlistId)
-    console.log('[tracks] got', tracks.length, 'tracks')
+    console.log('[tracks] fetching audio features for', tracks.length, 'tracks')
 
     const trackIds = tracks.map((t) => t.id).filter(Boolean)
-    console.log('[tracks] fetching audio features for', trackIds.length, 'tracks')
-
-    const features = await getAudioFeatures(session.accessToken, trackIds)
-    console.log('[tracks] got', features.length, 'features')
+    const features = await getAudioFeatures(session.accessToken, trackIds, tracks)
 
     const merged = mergeTracksWithFeatures(tracks, features, zones)
     const sorted = sortForWorkout(merged)

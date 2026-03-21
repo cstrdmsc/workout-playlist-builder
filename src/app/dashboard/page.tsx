@@ -92,7 +92,7 @@ export default function DashboardPage() {
               </div>
               <p className="text-sm font-medium truncate">{pl.name}</p>
               <p className="text-xs text-neutral-500 mt-0.5">
-                {pl.tracks?.total ?? 0} tracks
+                {pl.tracks?.total ?? pl.items?.total ?? '—'} tracks
               </p>
             </button>
           ))}
