@@ -352,12 +352,39 @@ function BuilderContent() {
   async function handleSave() {
     setSaving(true)
     try {
-      const saveTracks = tracks.filter((t) => t.zone !== 'unmatched' || includeUnmatched)
+      // Save based on active tab
+      const saveTracks = activeFilter === 'all'
+        ? [...tracks]
+            .filter((t) => t.zone !== 'unmatched' || includeUnmatched)
+            .sort((a, b) => {
+              const zoneDiff = zoneOrder[a.zone] - zoneOrder[b.zone]
+              if (zoneDiff !== 0) return zoneDiff
+              return a.bpm - b.bpm
+            })
+        : tracks
+            .filter((t) => t.zone === activeFilter)
+            .sort((a, b) => a.bpm - b.bpm)
+
+      const nameMap: Record<string, string> = {
+        all: `${playlistName} — BPM sorted`,
+        warmup: `${playlistName} — Warmup`,
+        peak: `${playlistName} — Peak`,
+        cooldown: `${playlistName} — Cooldown`,
+      }
+
+      const descMap: Record<string, string> = {
+        all: 'Full workout playlist sorted by BPM (Warmup → Peak → Cooldown)',
+        warmup: `Warmup zone (${zones.warmup.min}–${zones.warmup.max} BPM)`,
+        peak: `Peak zone (${zones.peak.min}–${zones.peak.max} BPM)`,
+        cooldown: `Cooldown zone (${zones.cooldown.min}–${zones.cooldown.max} BPM)`,
+      }
+
       const res = await fetch('/api/save', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: `${playlistName} — BPM sorted`,
-          description: 'Created by Workout Playlist Builder',
+          name: nameMap[activeFilter],
+          description: descMap[activeFilter],
           trackUris: saveTracks.map((t) => `spotify:track:${t.id}`),
         }),
       })
@@ -369,9 +396,18 @@ function BuilderContent() {
   }
 
   const unmatchedCount = tracks.filter((t) => t.zone === 'unmatched').length
+
+  const zoneOrder: Record<string, number> = { warmup: 0, peak: 1, cooldown: 2, unmatched: 3 }
+
   const filtered = activeFilter === 'all'
-    ? tracks.filter((t) => t.zone !== 'unmatched' || includeUnmatched)
-    : tracks.filter((t) => t.zone === activeFilter)
+    ? [...tracks]
+        .filter((t) => t.zone !== 'unmatched' || includeUnmatched)
+        .sort((a, b) => {
+          const zoneDiff = zoneOrder[a.zone] - zoneOrder[b.zone]
+          if (zoneDiff !== 0) return zoneDiff
+          return a.bpm - b.bpm // ascending BPM within each zone
+        })
+    : tracks.filter((t) => t.zone === activeFilter).sort((a, b) => a.bpm - b.bpm)
   const zoneCounts = {
     warmup: tracks.filter((t) => t.zone === 'warmup').length,
     peak: tracks.filter((t) => t.zone === 'peak').length,
@@ -381,6 +417,25 @@ function BuilderContent() {
 
   return (
     <main className="min-h-screen bg-black text-white pb-32">
+
+      {/* Success banner */}
+      {savedUrl && (
+        <div className="bg-[#1DB954] text-black px-4 py-3 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+            <span className="text-sm font-semibold">Playlist saved to your Spotify!</span>
+          </div>
+          <a
+            href={savedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm font-bold underline underline-offset-2 flex-shrink-0"
+          >
+            Open in Spotify ↗
+          </a>
+        </div>
+      )}
+
       <header className="flex items-center justify-between px-4 sm:px-8 py-4 border-b border-neutral-800 gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <button onClick={() => router.push('/dashboard')} className="text-neutral-500 hover:text-white transition-colors text-sm flex-shrink-0">← Back</button>
@@ -388,9 +443,6 @@ function BuilderContent() {
           <span className="text-sm font-medium truncate">{playlistName}</span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {savedUrl && (
-            <a href={savedUrl} target="_blank" rel="noopener noreferrer" className="text-[#1DB954] text-xs hover:underline hidden sm:block">Open in Spotify ↗</a>
-          )}
           {!loading && tracks.length > 0 && (
             <button
               onClick={handleDetectBpm}
@@ -404,7 +456,7 @@ function BuilderContent() {
           )}
           <button onClick={handleSave} disabled={saving || loading || tracks.length === 0}
             className="bg-[#1DB954] hover:bg-[#1ed760] disabled:opacity-40 text-black font-semibold text-xs sm:text-sm px-3 sm:px-5 py-2 rounded-full transition-colors">
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? 'Saving...' : activeFilter === 'all' ? 'Save all' : `Save ${activeFilter}`}
           </button>
         </div>
       </header>
