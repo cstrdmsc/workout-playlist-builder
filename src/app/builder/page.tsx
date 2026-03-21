@@ -286,11 +286,13 @@ function BuilderContent() {
   const [analyzeDone, setAnalyzeDone] = useState(false)
   const [visibleCount, setVisibleCount] = useState(20)
   const [loadingTrackId, setLoadingTrackId] = useState<string>('')
+  const [analyzedIds, setAnalyzedIds] = useState<Set<string>>(new Set())
 
   async function handleDetectBpm() {
     if (!playlistId || analyzing) return
     setAnalyzing(true)
     setAnalyzeProgress(0)
+    setAnalyzedIds(new Set())
 
     const updated = [...tracks]
     let done = 0
@@ -320,6 +322,8 @@ function BuilderContent() {
       } catch (e) {
         console.warn('BPM fetch failed for', track.name)
       }
+      // Mark this track as analyzed so it appears in the list
+      setAnalyzedIds((prev) => new Set([...prev, track.id]))
       done++
       setAnalyzeProgress(Math.round((done / tracks.length) * 100))
     }
@@ -413,15 +417,19 @@ function BuilderContent() {
 
   const zoneOrder: Record<string, number> = { warmup: 0, peak: 1, cooldown: 2, unmatched: 3 }
 
+  const isAnalyzed = (id: string) => !analyzing && analyzedIds.size === 0 ? true : analyzedIds.has(id) || loadingTrackId === id
+
   const filtered = activeFilter === 'all'
     ? [...tracks]
-        .filter((t) => t.zone !== 'unmatched' || includeUnmatched)
+        .filter((t) => isAnalyzed(t.id) && (t.zone !== 'unmatched' || includeUnmatched))
         .sort((a, b) => {
           const zoneDiff = zoneOrder[a.zone] - zoneOrder[b.zone]
           if (zoneDiff !== 0) return zoneDiff
           return a.bpm - b.bpm
         })
-    : tracks.filter((t) => t.zone === activeFilter).sort((a, b) => a.bpm - b.bpm)
+    : tracks
+        .filter((t) => isAnalyzed(t.id) && t.zone === activeFilter)
+        .sort((a, b) => a.bpm - b.bpm)
   const zoneCounts = {
     warmup: tracks.filter((t) => t.zone === 'warmup').length,
     peak: tracks.filter((t) => t.zone === 'peak').length,
@@ -560,7 +568,29 @@ function BuilderContent() {
                       ))}
                     </SortableContext>
                   </DndContext>
-                  {filtered.length > visibleCount && (
+                  {/* Currently analyzing row */}
+                  {analyzing && loadingTrackId && (() => {
+                    const t = tracks.find((t) => t.id === loadingTrackId)
+                    if (!t) return null
+                    const img = t.album.images?.[2]?.url ?? t.album.images?.[0]?.url
+                    return (
+                      <div className="flex items-center gap-3 px-4 py-3 border-t border-neutral-800 bg-neutral-800/30">
+                        <div className="w-4 h-4 flex-shrink-0" />
+                        <span className="text-xs text-neutral-600 w-5 text-right flex-shrink-0">···</span>
+                        <div className="w-9 h-9 rounded flex-shrink-0 relative overflow-hidden bg-neutral-800">
+                          {img && <img src={img} alt={t.name} className="w-full h-full object-cover" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate text-neutral-400">{t.name}</p>
+                          <p className="text-xs text-neutral-600 truncate">{t.artists.map((a: any) => a.name).join(', ')}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <div className="w-3 h-3 border-2 border-neutral-600 border-t-[#1DB954] rounded-full animate-spin" />
+                          <span className="text-xs text-neutral-500">Detecting…</span>
+                        </div>
+                      </div>
+                    )
+                  })()}
                     <button
                       onClick={() => setVisibleCount((v) => v + 20)}
                       className="w-full py-3 text-xs text-neutral-500 hover:text-neutral-300 transition-colors border-t border-neutral-800"
