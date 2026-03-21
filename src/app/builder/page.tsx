@@ -461,8 +461,9 @@ function BuilderContent() {
               ) : <><span>⚡</span><span className="hidden sm:inline"> Detect BPM</span></>}
             </button>
           )}
-          <button onClick={handleSave} disabled={saving || loading || tracks.length === 0}
-            className="bg-[#1DB954] hover:bg-[#1ed760] disabled:opacity-40 text-black font-semibold text-xs sm:text-sm px-3 sm:px-5 py-2 rounded-full transition-colors">
+          <button onClick={handleSave}
+            disabled={saving || loading || tracks.length === 0 || filtered.length === 0 || filtered.every((t) => t.bpm === 0)}
+            className="bg-[#1DB954] hover:bg-[#1ed760] disabled:opacity-40 disabled:cursor-not-allowed text-black font-semibold text-xs sm:text-sm px-3 sm:px-5 py-2 rounded-full transition-colors">
             {saving ? 'Saving...' : activeFilter === 'all' ? 'Save all' : `Save ${activeFilter}`}
           </button>
         </div>
