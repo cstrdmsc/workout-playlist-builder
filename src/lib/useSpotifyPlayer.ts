@@ -47,8 +47,12 @@ export function useSpotifyPlayer(accessToken: string | undefined) {
 
     spotifyPlayer.addListener('player_state_changed', (state: any) => {
       if (!state) return
+      const newTrackId = state.track_window?.current_track?.id ?? ''
       setIsPaused(state.paused)
-      setCurrentTrackId(state.track_window?.current_track?.id ?? '')
+      setCurrentTrackId((prev) => {
+        if (prev !== newTrackId) setPosition(0) // reset on track change
+        return newTrackId
+      })
       setPosition(state.position)
       setDuration(state.duration)
       clearInterval(intervalRef.current)
