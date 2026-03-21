@@ -11,7 +11,7 @@ export async function GET() {
 
   try {
     const playlists = await getUserPlaylists(session.accessToken)
-    return NextResponse.json({ playlists })
+    return NextResponse.json({ playlists: playlists.filter(Boolean) })
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
