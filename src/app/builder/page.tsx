@@ -266,7 +266,7 @@ function BuilderContent() {
   const playlistId = params.get('playlistId')
   const playlistName = params.get('name') ?? 'Playlist'
 
-  const { isReady, isPaused, currentTrackId, position, duration, error: playerError, playTrack, togglePlay, seek } =
+  const { isReady, isPaused, currentTrackId, position, duration, playTrack, togglePlay, seek } =
     useSpotifyPlayer(session?.accessToken)
 
   const [zones, setZones] = useState<ZoneConfig>(DEFAULT_ZONES)
