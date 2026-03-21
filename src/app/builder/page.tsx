@@ -591,6 +591,7 @@ function BuilderContent() {
                       </div>
                     )
                   })()}
+                  {filtered.length > visibleCount && (
                     <button
                       onClick={() => setVisibleCount((v) => v + 20)}
                       className="w-full py-3 text-xs text-neutral-500 hover:text-neutral-300 transition-colors border-t border-neutral-800"
