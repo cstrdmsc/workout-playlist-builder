@@ -17,7 +17,7 @@ export function useBpmAnalyzer() {
     setAnalyzing(true)
     setProgress(0)
 
-    const { createRealTimeBpmAnalyzer } = await import('realtime-bpm-analyzer')
+    const { analyzeFullBuffer } = await import('realtime-bpm-analyzer')
     const updated = [...tracks]
     let done = 0
 
@@ -25,50 +25,21 @@ export function useBpmAnalyzer() {
       tracksWithPreview.map(async (track: any) => {
         try {
           const audioContext = new AudioContext()
-          const analyzer = await createRealTimeBpmAnalyzer({
-            continuousAnalysis: false,
-            stabilizationTime: 2000,
-          })
-
           const res = await fetch(track.previewUrl, { mode: 'cors' })
           const arrayBuffer = await res.arrayBuffer()
           const audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
 
-          const source = audioContext.createBufferSource()
-          source.buffer = audioBuffer
+          const result = await analyzeFullBuffer(audioBuffer)
+          const bpm = Math.round(result?.[0]?.tempo ?? 0)
 
-          const scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1)
-          source.connect(scriptProcessor)
-          scriptProcessor.connect(audioContext.destination)
-          source.connect(analyzer.node)
-          analyzer.node.connect(audioContext.destination)
-
-          await new Promise<void>((resolve) => {
-            analyzer.on('bpm', (data: any) => {
-              const bpm = Math.round(data.bpm[0]?.tempo ?? 0)
-              if (bpm > 0) {
-                const idx = updated.findIndex((t) => t.id === track.id)
-                if (idx !== -1) {
-                  updated[idx] = {
-                    ...updated[idx],
-                    bpm,
-                    zone: getZone(bpm, zones),
-                  }
-                  onUpdate([...updated])
-                }
-              }
-              source.stop()
-              audioContext.close()
-              resolve()
-            })
-
-            source.start()
-            setTimeout(() => {
-              source.stop()
-              audioContext.close()
-              resolve()
-            }, 5000)
-          })
+          if (bpm > 0) {
+            const idx = updated.findIndex((t) => t.id === track.id)
+            if (idx !== -1) {
+              updated[idx] = { ...updated[idx], bpm, zone: getZone(bpm, zones) }
+              onUpdate([...updated])
+            }
+          }
+          audioContext.close()
         } catch (e) {
           console.warn('BPM analysis failed for', track.name, e)
         }
