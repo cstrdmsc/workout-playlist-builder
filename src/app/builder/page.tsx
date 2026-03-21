@@ -186,7 +186,7 @@ function SortableTrackRow({ track, index, onPreview, onPlay }: {
 
   return (
     <div ref={setNodeRef} style={style}
-      className="flex items-center gap-3 px-4 py-3 border-b border-neutral-800 last:border-0 hover:bg-neutral-800/50 transition-colors group">
+      className={`flex items-center gap-3 px-4 py-3 border-b border-neutral-800 last:border-0 hover:bg-neutral-800/50 transition-colors group ${track.bpm === 0 ? 'opacity-50' : ''}`}>
       <button {...attributes} {...listeners}
         className="text-neutral-700 group-hover:text-neutral-500 transition-colors cursor-grab active:cursor-grabbing flex-shrink-0"
         aria-label="Drag to reorder"><DragIcon /></button>
@@ -405,8 +405,9 @@ function BuilderContent() {
 
   const filtered = activeFilter === 'all'
     ? [...tracks]
-        .filter((t) => t.zone !== 'unmatched' || includeUnmatched)
+        .filter((t) => analyzing || t.zone !== 'unmatched' || includeUnmatched)
         .sort((a, b) => {
+          if (analyzing) return 0 // keep original order while analyzing
           const zoneDiff = zoneOrder[a.zone] - zoneOrder[b.zone]
           if (zoneDiff !== 0) return zoneDiff
           return a.bpm - b.bpm
@@ -535,7 +536,7 @@ function BuilderContent() {
                 <>
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <SortableContext items={filtered.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                      {filtered.slice(0, visibleCount).map((track, i) => (
+                      {filtered.slice(0, analyzing ? filtered.length : visibleCount).map((track, i) => (
                         <SortableTrackRow
                           key={track.id}
                           track={track}
