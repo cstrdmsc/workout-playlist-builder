@@ -1,0 +1,395 @@
+'use client'
+import { useSession } from 'next-auth/react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState, useCallback, useRef, Suspense } from 'react'
+import Image from 'next/image'
+import {
+  DndContext, closestCenter, KeyboardSensor,
+  PointerSensor, useSensor, useSensors, DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove, SortableContext, sortableKeyboardCoordinates,
+  useSortable, verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { TrackWithBpm, ZoneConfig, DEFAULT_ZONES, ZONE_COLORS, Zone, formatDuration } from '@/lib/bpm'
+
+type TrackWithPreview = TrackWithBpm & { previewUrl?: string }
+
+function BpmChart({ tracks, zones }: { tracks: TrackWithBpm[]; zones: ZoneConfig }) {
+  if (tracks.length === 0) return null
+  const MIN = 60, MAX = 220, BUCKETS = 32, bucketSize = (MAX - MIN) / BUCKETS
+  const counts = Array(BUCKETS).fill(0)
+  for (const t of tracks) {
+    const idx = Math.min(Math.floor((t.bpm - MIN) / bucketSize), BUCKETS - 1)
+    if (idx >= 0) counts[idx]++
+  }
+  const maxCount = Math.max(...counts, 1)
+  const pct = (bpm: number) => ((bpm - MIN) / (MAX - MIN)) * 100
+
+  return (
+    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
+      <p className="text-xs font-medium text-neutral-500 uppercase tracking-widest mb-4">BPM distribution</p>
+      <div className="relative h-20">
+        {[
+          { min: zones.warmup.min, max: zones.warmup.max, color: '#60a5fa18' },
+          { min: zones.peak.min, max: zones.peak.max, color: '#f9731618' },
+          { min: zones.cooldown.min, max: zones.cooldown.max, color: '#a78bfa18' },
+        ].map(({ min, max, color }, i) => (
+          <div key={i} className="absolute top-0 bottom-0 rounded"
+            style={{ left: `${pct(min)}%`, width: `${pct(max) - pct(min)}%`, background: color }} />
+        ))}
+        <div className="absolute inset-0 flex items-end gap-px">
+          {counts.map((count, i) => {
+            const bpm = MIN + i * bucketSize + bucketSize / 2
+            let color = '#3f3f46'
+            if (bpm >= zones.warmup.min && bpm <= zones.warmup.max) color = '#60a5fa'
+            else if (bpm >= zones.peak.min && bpm <= zones.peak.max) color = '#f97316'
+            else if (bpm >= zones.cooldown.min && bpm <= zones.cooldown.max) color = '#a78bfa'
+            return (
+              <div key={i} className="flex-1 rounded-sm transition-all duration-300"
+                style={{ height: `${(count / maxCount) * 100}%`, minHeight: count > 0 ? 3 : 0, background: color, opacity: count === 0 ? 0 : 1 }}
+                title={`~${Math.round(bpm)} BPM: ${count} track${count !== 1 ? 's' : ''}`} />
+            )
+          })}
+        </div>
+      </div>
+      <div className="flex justify-between mt-2">
+        {[60, 100, 140, 180, 220].map((b) => (
+          <span key={b} className="text-xs text-neutral-600">{b}</span>
+        ))}
+      </div>
+      <div className="flex gap-4 mt-3 flex-wrap">
+        {[['#60a5fa','Warmup'],['#f97316','Peak'],['#a78bfa','Cooldown'],['#3f3f46','Unmatched']].map(([color, label]) => (
+          <div key={label} className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-sm" style={{ background: color }} />
+            <span className="text-xs text-neutral-500">{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PreviewPlayer({ track, onClose }: { track: TrackWithPreview; onClose: () => void }) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [playing, setPlaying] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const colors = ZONE_COLORS[track.zone]
+  const img = track.album.images?.[0]?.url
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || !track.previewUrl) return
+    audio.play().then(() => setPlaying(true)).catch(() => {})
+    const onTime = () => setProgress((audio.currentTime / (audio.duration || 30)) * 100)
+    const onEnd = () => setPlaying(false)
+    audio.addEventListener('timeupdate', onTime)
+    audio.addEventListener('ended', onEnd)
+    return () => { audio.pause(); audio.removeEventListener('timeupdate', onTime); audio.removeEventListener('ended', onEnd) }
+  }, [track.id, track.previewUrl])
+
+  function toggle() {
+    const audio = audioRef.current
+    if (!audio) return
+    if (playing) { audio.pause(); setPlaying(false) } else { audio.play(); setPlaying(true) }
+  }
+
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[500px] max-w-[calc(100vw-2rem)]">
+      {track.previewUrl && <audio ref={audioRef} src={track.previewUrl} preload="auto" />}
+      <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-4 shadow-2xl">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-lg overflow-hidden relative bg-neutral-800 flex-shrink-0">
+            {img && <Image src={img} alt={track.name} fill className="object-cover" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{track.name}</p>
+            <p className="text-xs text-neutral-500 truncate">{track.artists.map((a: any) => a.name).join(', ')}</p>
+          </div>
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+            style={{ background: colors.bg + '33', color: colors.dot }}>{track.bpm} BPM</span>
+          <button onClick={toggle} disabled={!track.previewUrl}
+            className="w-9 h-9 rounded-full border border-neutral-700 flex items-center justify-center hover:bg-neutral-800 transition-colors disabled:opacity-30 flex-shrink-0">
+            {playing ? <PauseIcon /> : <PlayIcon />}
+          </button>
+          <button onClick={onClose} className="text-neutral-500 hover:text-white transition-colors flex-shrink-0">
+            <CloseIcon />
+          </button>
+        </div>
+        <div className="mt-3 h-1 bg-neutral-800 rounded-full overflow-hidden">
+          <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, background: colors.dot }} />
+        </div>
+        {!track.previewUrl && (
+          <p className="text-xs text-neutral-600 mt-2 text-center">No 30s preview available for this track</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function UnmatchedBanner({ count, included, onInclude, onExclude }: {
+  count: number; included: boolean; onInclude: () => void; onExclude: () => void
+}) {
+  if (count === 0) return null
+  return (
+    <div className="flex items-center justify-between bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 gap-4">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="w-2 h-2 rounded-full bg-neutral-500 flex-shrink-0" />
+        <p className="text-sm text-neutral-300 truncate">
+          <span className="font-medium text-white">{count} tracks</span> don't fit any zone
+        </p>
+      </div>
+      <div className="flex gap-2 flex-shrink-0">
+        <button onClick={onInclude}
+          className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${included ? 'bg-neutral-700 border-neutral-600 text-white' : 'border-neutral-700 text-neutral-500 hover:text-neutral-300'}`}>
+          Include at end
+        </button>
+        <button onClick={onExclude}
+          className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${!included ? 'bg-neutral-700 border-neutral-600 text-white' : 'border-neutral-700 text-neutral-500 hover:text-neutral-300'}`}>
+          Exclude
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function SortableTrackRow({ track, index, onPreview }: {
+  track: TrackWithPreview; index: number; onPreview: (t: TrackWithPreview) => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: track.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
+  const colors = ZONE_COLORS[track.zone]
+  const img = track.album.images?.[2]?.url ?? track.album.images?.[0]?.url
+
+  return (
+    <div ref={setNodeRef} style={style}
+      className="flex items-center gap-3 px-4 py-3 border-b border-neutral-800 last:border-0 hover:bg-neutral-800/50 transition-colors group">
+      <button {...attributes} {...listeners}
+        className="text-neutral-700 group-hover:text-neutral-500 transition-colors cursor-grab active:cursor-grabbing flex-shrink-0"
+        aria-label="Drag to reorder"><DragIcon /></button>
+      <span className="text-xs text-neutral-600 w-5 text-right flex-shrink-0">{index}</span>
+      <div className="w-9 h-9 rounded flex-shrink-0 relative overflow-hidden bg-neutral-800">
+        {img && <Image src={img} alt={track.name} fill className="object-cover" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate">{track.name}</p>
+        <p className="text-xs text-neutral-500 truncate">{track.artists.map((a: any) => a.name).join(', ')}</p>
+      </div>
+      <span className="text-xs text-neutral-500 flex-shrink-0">{formatDuration(track.duration_ms)}</span>
+      <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+        style={{ background: colors.bg + '33', color: colors.dot }}>{track.bpm} BPM</span>
+      <span className="text-xs px-2 py-0.5 rounded-full capitalize flex-shrink-0"
+        style={{ background: colors.bg + '22', color: colors.text + 'cc' }}>{track.zone}</span>
+      <button onClick={() => onPreview(track)}
+        className="opacity-0 group-hover:opacity-100 transition-opacity text-neutral-500 hover:text-white flex-shrink-0"
+        aria-label="Preview"><PlayIcon /></button>
+    </div>
+  )
+}
+
+function ZoneCard({ zone, config, count, onChange }: {
+  zone: Zone; config: { min: number; max: number }; count: number; onChange: (min: number, max: number) => void
+}) {
+  const colors = ZONE_COLORS[zone]
+  const labels = { warmup: 'Warmup', peak: 'Peak', cooldown: 'Cooldown' }
+  return (
+    <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full" style={{ background: colors.dot }} />
+        <span className="text-sm font-medium">{labels[zone as keyof typeof labels]}</span>
+      </div>
+      <div className="space-y-2">
+        <label className="text-xs text-neutral-500">BPM range</label>
+        <div className="flex items-center gap-2">
+          <input type="number" value={config.min} min={60} max={220}
+            onChange={(e) => onChange(Number(e.target.value), config.max)}
+            className="w-16 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:border-neutral-500" />
+          <span className="text-neutral-600 text-xs">–</span>
+          <input type="number" value={config.max} min={60} max={220}
+            onChange={(e) => onChange(config.min, Number(e.target.value))}
+            className="w-16 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:border-neutral-500" />
+        </div>
+      </div>
+      <p className="text-xs text-neutral-500"><span className="text-white font-medium">{count}</span> tracks matched</p>
+    </div>
+  )
+}
+
+function DragIcon() {
+  return <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
+    <circle cx="4.5" cy="3.5" r="1.1"/><circle cx="9.5" cy="3.5" r="1.1"/>
+    <circle cx="4.5" cy="7" r="1.1"/><circle cx="9.5" cy="7" r="1.1"/>
+    <circle cx="4.5" cy="10.5" r="1.1"/><circle cx="9.5" cy="10.5" r="1.1"/>
+  </svg>
+}
+function PlayIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+}
+function PauseIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+}
+function CloseIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+}
+
+function BuilderContent() {
+  const { status } = useSession()
+  const router = useRouter()
+  const params = useSearchParams()
+  const playlistId = params.get('playlistId')
+  const playlistName = params.get('name') ?? 'Playlist'
+
+  const [zones, setZones] = useState<ZoneConfig>(DEFAULT_ZONES)
+  const [tracks, setTracks] = useState<TrackWithPreview[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [savedUrl, setSavedUrl] = useState('')
+  const [error, setError] = useState('')
+  const [activeFilter, setActiveFilter] = useState<Zone | 'all'>('all')
+  const [includeUnmatched, setIncludeUnmatched] = useState(false)
+  const [previewTrack, setPreviewTrack] = useState<TrackWithPreview | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
+
+  useEffect(() => {
+    if (status === 'unauthenticated') router.push('/login')
+  }, [status, router])
+
+  const fetchTracks = useCallback(() => {
+    if (!playlistId) return
+    setLoading(true); setError('')
+    const q = new URLSearchParams({
+      playlistId,
+      warmupMin: String(zones.warmup.min), warmupMax: String(zones.warmup.max),
+      peakMin: String(zones.peak.min), peakMax: String(zones.peak.max),
+      cooldownMin: String(zones.cooldown.min), cooldownMax: String(zones.cooldown.max),
+    })
+    fetch(`/api/tracks?${q}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.error) throw new Error(d.error); setTracks(d.tracks) })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [playlistId, zones])
+
+  useEffect(() => { fetchTracks() }, [fetchTracks])
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setTracks((prev) => arrayMove(prev, prev.findIndex((t) => t.id === active.id), prev.findIndex((t) => t.id === over.id)))
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const saveTracks = tracks.filter((t) => t.zone !== 'unmatched' || includeUnmatched)
+      const res = await fetch('/api/save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${playlistName} — BPM sorted`,
+          description: 'Created by Workout Playlist Builder',
+          trackUris: saveTracks.map((t) => `spotify:track:${t.id}`),
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setSavedUrl(data.playlist.external_urls?.spotify ?? '')
+    } catch (e: any) { setError(e.message) }
+    finally { setSaving(false) }
+  }
+
+  const unmatchedCount = tracks.filter((t) => t.zone === 'unmatched').length
+  const filtered = activeFilter === 'all'
+    ? tracks.filter((t) => t.zone !== 'unmatched' || includeUnmatched)
+    : tracks.filter((t) => t.zone === activeFilter)
+  const zoneCounts = {
+    warmup: tracks.filter((t) => t.zone === 'warmup').length,
+    peak: tracks.filter((t) => t.zone === 'peak').length,
+    cooldown: tracks.filter((t) => t.zone === 'cooldown').length,
+    unmatched: unmatchedCount,
+  }
+
+  return (
+    <main className="min-h-screen bg-black text-white pb-32">
+      <header className="flex items-center justify-between px-8 py-5 border-b border-neutral-800">
+        <div className="flex items-center gap-3">
+          <button onClick={() => router.push('/dashboard')} className="text-neutral-500 hover:text-white transition-colors text-sm">← Back</button>
+          <div className="w-px h-4 bg-neutral-700" />
+          <span className="text-sm font-medium truncate max-w-xs">{playlistName}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          {savedUrl && (
+            <a href={savedUrl} target="_blank" rel="noopener noreferrer" className="text-[#1DB954] text-sm hover:underline">Open in Spotify ↗</a>
+          )}
+          <button onClick={handleSave} disabled={saving || loading || tracks.length === 0}
+            className="bg-[#1DB954] hover:bg-[#1ed760] disabled:opacity-40 text-black font-semibold text-sm px-5 py-2 rounded-full transition-colors">
+            {saving ? 'Saving...' : 'Save to Spotify'}
+          </button>
+        </div>
+      </header>
+
+      <div className="max-w-4xl mx-auto px-8 py-8 space-y-6">
+        {error && <div className="bg-red-900/30 border border-red-800 text-red-300 text-sm px-4 py-3 rounded-lg">{error}</div>}
+
+        <div>
+          <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-widest mb-4">Workout zones</h3>
+          <div className="grid grid-cols-3 gap-4">
+            {(['warmup', 'peak', 'cooldown'] as const).map((zone) => (
+              <ZoneCard key={zone} zone={zone} config={zones[zone]} count={zoneCounts[zone]}
+                onChange={(min, max) => setZones((z) => ({ ...z, [zone]: { min, max } }))} />
+            ))}
+          </div>
+        </div>
+
+        {!loading && <BpmChart tracks={tracks} zones={zones} />}
+        {!loading && <UnmatchedBanner count={unmatchedCount} included={includeUnmatched}
+          onInclude={() => setIncludeUnmatched(true)} onExclude={() => setIncludeUnmatched(false)} />}
+
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-widest">
+              Sorted tracklist · {filtered.length} tracks
+            </h3>
+            <div className="flex gap-1.5">
+              {(['all', 'warmup', 'peak', 'cooldown'] as const).map((f) => (
+                <button key={f} onClick={() => setActiveFilter(f)}
+                  className={`text-xs px-3 py-1 rounded-full border transition-colors capitalize ${activeFilter === f ? 'bg-neutral-700 border-neutral-600 text-white' : 'border-neutral-800 text-neutral-500 hover:text-neutral-300'}`}>
+                  {f}
+                </button>
+              ))}
+            </div>
+          </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-5 h-5 border-2 border-[#1DB954] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+              {filtered.length === 0 ? (
+                <p className="text-center text-neutral-500 text-sm py-12">No tracks in this zone.</p>
+              ) : (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={filtered.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                    {filtered.map((track, i) => (
+                      <SortableTrackRow key={track.id} track={track} index={i + 1} onPreview={setPreviewTrack} />
+                    ))}
+                  </SortableContext>
+                </DndContext>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {previewTrack && <PreviewPlayer track={previewTrack} onClose={() => setPreviewTrack(null)} />}
+    </main>
+  )
+}
+
+export default function BuilderPage() {
+  return <Suspense><BuilderContent /></Suspense>
+}
