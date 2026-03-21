@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth'
 import { NextRequest, NextResponse } from 'next/server'
-import { authOptions } from '../../auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth'
 import { getPlaylistTracks, getAudioFeatures } from '@/lib/spotify'
 import { mergeTracksWithFeatures, sortForWorkout, DEFAULT_ZONES, ZoneConfig } from '@/lib/bpm'
 
