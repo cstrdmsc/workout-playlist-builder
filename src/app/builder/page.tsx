@@ -409,7 +409,7 @@ function BuilderContent() {
         .sort((a, b) => {
           const zoneDiff = zoneOrder[a.zone] - zoneOrder[b.zone]
           if (zoneDiff !== 0) return zoneDiff
-          return a.bpm - b.bpm // ascending BPM within each zone
+          return a.bpm - b.bpm
         })
     : tracks.filter((t) => t.zone === activeFilter).sort((a, b) => a.bpm - b.bpm)
   const zoneCounts = {
@@ -532,30 +532,32 @@ function BuilderContent() {
               {filtered.length === 0 ? (
                 <p className="text-center text-neutral-500 text-sm py-12">No tracks in this zone.</p>
               ) : (
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={filtered.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                    {filtered.slice(0, visibleCount).map((track, i) => (
-                      <SortableTrackRow
-                        key={track.id}
-                        track={track}
-                        index={i + 1}
-                        onPreview={setPreviewTrack}
-                        onPlay={(t) => {
-                          setPreviewTrack(t)
-                          setTimeout(() => playTrack(t.id), 100)
-                        }}
-                      />
-                    ))}
-                  </SortableContext>
-                </DndContext>
-                {filtered.length > visibleCount && (
-                  <button
-                    onClick={() => setVisibleCount((v) => v + 20)}
-                    className="w-full py-3 text-xs text-neutral-500 hover:text-neutral-300 transition-colors border-t border-neutral-800"
-                  >
-                    Show {Math.min(20, filtered.length - visibleCount)} more of {filtered.length - visibleCount} remaining
-                  </button>
-                )}
+                <>
+                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                    <SortableContext items={filtered.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                      {filtered.slice(0, visibleCount).map((track, i) => (
+                        <SortableTrackRow
+                          key={track.id}
+                          track={track}
+                          index={i + 1}
+                          onPreview={setPreviewTrack}
+                          onPlay={(t) => {
+                            setPreviewTrack(t)
+                            setTimeout(() => playTrack(t.id), 100)
+                          }}
+                        />
+                      ))}
+                    </SortableContext>
+                  </DndContext>
+                  {filtered.length > visibleCount && (
+                    <button
+                      onClick={() => setVisibleCount((v) => v + 20)}
+                      className="w-full py-3 text-xs text-neutral-500 hover:text-neutral-300 transition-colors border-t border-neutral-800"
+                    >
+                      Show {Math.min(20, filtered.length - visibleCount)} more of {filtered.length - visibleCount} remaining
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
