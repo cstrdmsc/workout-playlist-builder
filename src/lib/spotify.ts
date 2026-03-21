@@ -54,11 +54,16 @@ export async function getUserPlaylists(accessToken: string) {
 // Fetch all tracks in a playlist using the user's access token
 export async function getPlaylistTracks(accessToken: string, playlistId: string) {
   const tracks: any[] = []
-  let url = `/playlists/${playlistId}/items?limit=100`
+  let url = `/playlists/${playlistId}/items?limit=100&market=PH`
 
   while (url) {
     const data = await spotifyFetch(url, accessToken)
-    tracks.push(...data.items.map((i: any) => i.track).filter(Boolean))
+    console.log('[tracks] raw item sample:', JSON.stringify(data.items?.[0]).slice(0, 400))
+    const mapped = data.items
+      .map((i: any) => i.item ?? i.track)  // new API uses 'item', old used 'track'
+      .filter((t: any) => t && t.id && t.type === 'track')
+    console.log('[tracks] mapped', mapped.length, 'of', data.items?.length, 'items')
+    tracks.push(...mapped)
     url = data.next ?? null
   }
 
@@ -96,7 +101,7 @@ export async function savePlaylist(
   trackUris: string[]
 ) {
   // Create empty playlist
-  const playlist = await spotifyFetch(`/users/${userId}/playlists`, accessToken, {
+  const playlist = await spotifyFetch(`/me/playlists`, accessToken, {
     method: 'POST',
     body: JSON.stringify({ name, description, public: false }),
   })
