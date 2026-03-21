@@ -176,8 +176,8 @@ function UnmatchedBanner({ count, included, onInclude, onExclude }: {
   )
 }
 
-function SortableTrackRow({ track, index, isLoading, onPreview, onPlay }: {
-  track: TrackWithPreview; index: number; isLoading?: boolean; onPreview: (t: TrackWithPreview) => void; onPlay: (t: TrackWithPreview) => void
+function SortableTrackRow({ track, index, onPreview, onPlay }: {
+  track: TrackWithPreview; index: number; onPreview: (t: TrackWithPreview) => void; onPlay: (t: TrackWithPreview) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: track.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
@@ -199,15 +199,8 @@ function SortableTrackRow({ track, index, isLoading, onPreview, onPlay }: {
         <p className="text-xs text-neutral-500 truncate">{track.artists.map((a: any) => a.name).join(', ')}</p>
       </div>
       <span className="text-xs text-neutral-500 flex-shrink-0 hidden sm:block">{formatDuration(track.duration_ms)}</span>
-      {isLoading ? (
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <div className="w-3 h-3 border-2 border-neutral-600 border-t-[#1DB954] rounded-full animate-spin" />
-          <span className="text-xs text-neutral-500">Detecting…</span>
-        </div>
-      ) : (
-        <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
-          style={{ background: colors.bg + '33', color: colors.dot }}>{track.bpm} BPM</span>
-      )}
+      <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+        style={{ background: colors.bg + '33', color: colors.dot }}>{track.bpm} BPM</span>
       <span className="text-xs px-2 py-0.5 rounded-full capitalize flex-shrink-0 hidden sm:block"
         style={{ background: colors.bg + '22', color: colors.text + 'cc' }}>{track.zone}</span>
       <button onClick={() => onPlay(track)}
@@ -558,7 +551,6 @@ function BuilderContent() {
                           key={track.id}
                           track={track}
                           index={i + 1}
-                          isLoading={loadingTrackId === track.id}
                           onPreview={setPreviewTrack}
                           onPlay={(t) => {
                             setPreviewTrack(t)
