@@ -64,7 +64,7 @@ export async function getPlaylistTracks(accessToken: string, playlistId: string)
     token = accessToken
   }
 
-  let url = `/playlists/${playlistId}/tracks?limit=100`
+  let url = `/playlists/${playlistId}/items?limit=100`
 
   while (url) {
     const data = await spotifyFetch(url, token)
@@ -114,7 +114,7 @@ export async function savePlaylist(
   // Add tracks in batches of 100
   for (let i = 0; i < trackUris.length; i += 100) {
     const chunk = trackUris.slice(i, i + 100)
-    await spotifyFetch(`/playlists/${playlist.id}/tracks`, accessToken, {
+    await spotifyFetch(`/playlists/${playlist.id}/items`, accessToken, {
       method: 'POST',
       body: JSON.stringify({ uris: chunk }),
     })
