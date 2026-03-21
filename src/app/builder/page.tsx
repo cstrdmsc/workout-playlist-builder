@@ -13,7 +13,6 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { TrackWithBpm, ZoneConfig, DEFAULT_ZONES, ZONE_COLORS, Zone, formatDuration } from '@/lib/bpm'
-import { useBpmAnalyzer } from '@/lib/useBpmAnalyzer'
 
 type TrackWithPreview = TrackWithBpm & { previewUrl?: string }
 
@@ -250,7 +249,46 @@ function BuilderContent() {
   const [activeFilter, setActiveFilter] = useState<Zone | 'all'>('all')
   const [includeUnmatched, setIncludeUnmatched] = useState(false)
   const [previewTrack, setPreviewTrack] = useState<TrackWithPreview | null>(null)
-  const { analyzeTracks, analyzing, progress } = useBpmAnalyzer()
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analyzeProgress, setAnalyzeProgress] = useState(0)
+
+  async function handleDetectBpm() {
+    if (!playlistId || analyzing) return
+    setAnalyzing(true)
+    setAnalyzeProgress(0)
+
+    const updated = [...tracks]
+    let done = 0
+
+    for (const track of tracks) {
+      try {
+        const q = new URLSearchParams({
+          playlistId,
+          warmupMin: String(zones.warmup.min), warmupMax: String(zones.warmup.max),
+          peakMin: String(zones.peak.min), peakMax: String(zones.peak.max),
+          cooldownMin: String(zones.cooldown.min), cooldownMax: String(zones.cooldown.max),
+          trackId: track.id,
+          trackName: track.name,
+          trackArtist: track.artists?.[0]?.name ?? '',
+        })
+        const res = await fetch(`/api/bpm?${q}`)
+        const data = await res.json()
+        if (data.bpm > 0) {
+          const idx = updated.findIndex((t) => t.id === track.id)
+          if (idx !== -1) {
+            updated[idx] = { ...updated[idx], bpm: data.bpm, zone: data.zone }
+            setTracks([...updated])
+          }
+        }
+      } catch (e) {
+        console.warn('BPM fetch failed for', track.name)
+      }
+      done++
+      setAnalyzeProgress(Math.round((done / tracks.length) * 100))
+    }
+
+    setAnalyzing(false)
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -329,12 +367,12 @@ function BuilderContent() {
           )}
           {!loading && tracks.length > 0 && (
             <button
-              onClick={() => analyzeTracks(tracks as any, zones, setTracks as any)}
+              onClick={handleDetectBpm}
               disabled={analyzing}
               className="flex items-center gap-2 bg-neutral-800 hover:bg-neutral-700 disabled:opacity-40 text-white text-sm px-4 py-2 rounded-full transition-colors border border-neutral-700"
             >
               {analyzing ? (
-                <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />Analyzing… {progress}%</>
+                <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />Analyzing… {analyzeProgress}%</>
               ) : '⚡ Detect BPM'}
             </button>
           )}
