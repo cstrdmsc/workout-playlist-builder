@@ -276,6 +276,8 @@ function BuilderContent() {
   const [previewTrack, setPreviewTrack] = useState<TrackWithPreview | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [analyzeProgress, setAnalyzeProgress] = useState(0)
+  const [analyzeDone, setAnalyzeDone] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(20)
 
   async function handleDetectBpm() {
     if (!playlistId || analyzing) return
@@ -314,6 +316,8 @@ function BuilderContent() {
     }
 
     setAnalyzing(false)
+    setAnalyzeDone(true)
+    setTimeout(() => setAnalyzeDone(false), 4000)
   }
 
   const sensors = useSensors(
@@ -462,7 +466,7 @@ function BuilderContent() {
             </button>
           )}
           <button onClick={handleSave}
-            disabled={saving || loading || tracks.length === 0 || filtered.length === 0 || filtered.every((t) => t.bpm === 0)}
+            disabled={saving || loading || analyzing || tracks.length === 0 || filtered.length === 0 || filtered.every((t) => t.bpm === 0)}
             className="bg-[#1DB954] hover:bg-[#1ed760] disabled:opacity-40 disabled:cursor-not-allowed text-black font-semibold text-xs sm:text-sm px-3 sm:px-5 py-2 rounded-full transition-colors">
             {saving ? 'Saving...' : activeFilter === 'all' ? 'Save all' : `Save ${activeFilter}`}
           </button>
@@ -512,7 +516,7 @@ function BuilderContent() {
             </h3>
             <div className="flex gap-1.5 flex-wrap">
               {(['all', 'warmup', 'peak', 'cooldown'] as const).map((f) => (
-                <button key={f} onClick={() => setActiveFilter(f)}
+                <button key={f} onClick={() => { setActiveFilter(f); setVisibleCount(20) }}
                   className={`text-xs px-3 py-1.5 rounded-full border transition-colors capitalize ${activeFilter === f ? 'bg-neutral-700 border-neutral-600 text-white' : 'border-neutral-800 text-neutral-500 hover:text-neutral-300'}`}>
                   {f}
                 </button>
@@ -530,7 +534,7 @@ function BuilderContent() {
               ) : (
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                   <SortableContext items={filtered.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                    {filtered.map((track, i) => (
+                    {filtered.slice(0, visibleCount).map((track, i) => (
                       <SortableTrackRow
                         key={track.id}
                         track={track}
@@ -544,13 +548,30 @@ function BuilderContent() {
                     ))}
                   </SortableContext>
                 </DndContext>
+                {filtered.length > visibleCount && (
+                  <button
+                    onClick={() => setVisibleCount((v) => v + 20)}
+                    className="w-full py-3 text-xs text-neutral-500 hover:text-neutral-300 transition-colors border-t border-neutral-800"
+                  >
+                    Show {Math.min(20, filtered.length - visibleCount)} more of {filtered.length - visibleCount} remaining
+                  </button>
+                )}
               )}
             </div>
           )}
         </div>
       </div>
 
-      {previewTrack && (
+      {/* Analysis done toast */}
+      {analyzeDone && (
+        <div className="fixed bottom-6 right-6 z-50 bg-neutral-800 border border-neutral-700 text-white px-4 py-3 rounded-xl flex items-center gap-3 shadow-xl">
+          <div className="w-2 h-2 rounded-full bg-[#1DB954] flex-shrink-0" />
+          <span className="text-xs font-medium">BPM detection complete!</span>
+          <button onClick={() => setAnalyzeDone(false)} className="text-neutral-500 hover:text-white ml-1">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+      )}
         <SpotifyPlayer
           track={previewTrack}
           accessToken={session?.accessToken ?? ''}
