@@ -140,7 +140,7 @@ function SpotifyPlayer({ track, accessToken, onClose, isReady, isPaused, current
           <span className="text-xs text-neutral-600 w-8">{Math.floor(total / 60)}:{String(total % 60).padStart(2, '0')}</span>
         </div>
 
-        {!isReady && !error && (
+        {!isReady && (
           <p className="text-xs text-neutral-500 mt-2 text-center">
             Connecting… make sure Spotify is open on any device first
           </p>
