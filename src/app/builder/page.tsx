@@ -72,7 +72,7 @@ function BpmChart({ tracks, zones }: { tracks: TrackWithBpm[]; zones: ZoneConfig
   )
 }
 
-function SpotifyPlayer({ track, accessToken, onClose, isReady, isPaused, currentTrackId, position, duration, error, playTrack, togglePlay, seek }: {
+function SpotifyPlayer({ track, accessToken, onClose, isReady, isPaused, currentTrackId, position, duration, playTrack, togglePlay, seek }: {
   track: TrackWithPreview
   accessToken: string
   onClose: () => void
@@ -81,7 +81,6 @@ function SpotifyPlayer({ track, accessToken, onClose, isReady, isPaused, current
   currentTrackId: string
   position: number
   duration: number
-  error: string
   playTrack: (id: string) => void
   togglePlay: () => void
   seek: (ms: number) => void
@@ -495,7 +494,6 @@ function BuilderContent() {
           currentTrackId={currentTrackId}
           position={position}
           duration={duration}
-          error={playerError}
           playTrack={playTrack}
           togglePlay={togglePlay}
           seek={seek}
