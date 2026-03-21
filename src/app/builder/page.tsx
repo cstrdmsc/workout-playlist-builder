@@ -176,8 +176,8 @@ function UnmatchedBanner({ count, included, onInclude, onExclude }: {
   )
 }
 
-function SortableTrackRow({ track, index, onPreview, onPlay }: {
-  track: TrackWithPreview; index: number; onPreview: (t: TrackWithPreview) => void; onPlay: (t: TrackWithPreview) => void
+function SortableTrackRow({ track, index, isLoading, onPreview, onPlay }: {
+  track: TrackWithPreview; index: number; isLoading?: boolean; onPreview: (t: TrackWithPreview) => void; onPlay: (t: TrackWithPreview) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: track.id })
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.4 : 1 }
@@ -186,7 +186,7 @@ function SortableTrackRow({ track, index, onPreview, onPlay }: {
 
   return (
     <div ref={setNodeRef} style={style}
-      className={`flex items-center gap-3 px-4 py-3 border-b border-neutral-800 last:border-0 hover:bg-neutral-800/50 transition-colors group ${track.bpm === 0 ? 'opacity-50' : ''}`}>
+      className="flex items-center gap-3 px-4 py-3 border-b border-neutral-800 last:border-0 hover:bg-neutral-800/50 transition-colors group">
       <button {...attributes} {...listeners}
         className="text-neutral-700 group-hover:text-neutral-500 transition-colors cursor-grab active:cursor-grabbing flex-shrink-0"
         aria-label="Drag to reorder"><DragIcon /></button>
@@ -199,8 +199,15 @@ function SortableTrackRow({ track, index, onPreview, onPlay }: {
         <p className="text-xs text-neutral-500 truncate">{track.artists.map((a: any) => a.name).join(', ')}</p>
       </div>
       <span className="text-xs text-neutral-500 flex-shrink-0 hidden sm:block">{formatDuration(track.duration_ms)}</span>
-      <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
-        style={{ background: colors.bg + '33', color: colors.dot }}>{track.bpm} BPM</span>
+      {isLoading ? (
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="w-3 h-3 border-2 border-neutral-600 border-t-[#1DB954] rounded-full animate-spin" />
+          <span className="text-xs text-neutral-500">Detecting…</span>
+        </div>
+      ) : (
+        <span className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+          style={{ background: colors.bg + '33', color: colors.dot }}>{track.bpm} BPM</span>
+      )}
       <span className="text-xs px-2 py-0.5 rounded-full capitalize flex-shrink-0 hidden sm:block"
         style={{ background: colors.bg + '22', color: colors.text + 'cc' }}>{track.zone}</span>
       <button onClick={() => onPlay(track)}
@@ -278,6 +285,7 @@ function BuilderContent() {
   const [analyzeProgress, setAnalyzeProgress] = useState(0)
   const [analyzeDone, setAnalyzeDone] = useState(false)
   const [visibleCount, setVisibleCount] = useState(20)
+  const [loadingTrackId, setLoadingTrackId] = useState<string>('')
 
   async function handleDetectBpm() {
     if (!playlistId || analyzing) return
@@ -288,6 +296,7 @@ function BuilderContent() {
     let done = 0
 
     for (const track of tracks) {
+      setLoadingTrackId(track.id)
       try {
         const q = new URLSearchParams({
           playlistId,
@@ -315,6 +324,7 @@ function BuilderContent() {
       setAnalyzeProgress(Math.round((done / tracks.length) * 100))
     }
 
+    setLoadingTrackId('')
     setAnalyzing(false)
     setAnalyzeDone(true)
     setTimeout(() => setAnalyzeDone(false), 4000)
@@ -405,9 +415,8 @@ function BuilderContent() {
 
   const filtered = activeFilter === 'all'
     ? [...tracks]
-        .filter((t) => analyzing || t.zone !== 'unmatched' || includeUnmatched)
+        .filter((t) => t.zone !== 'unmatched' || includeUnmatched)
         .sort((a, b) => {
-          if (analyzing) return 0 // keep original order while analyzing
           const zoneDiff = zoneOrder[a.zone] - zoneOrder[b.zone]
           if (zoneDiff !== 0) return zoneDiff
           return a.bpm - b.bpm
@@ -536,11 +545,12 @@ function BuilderContent() {
                 <>
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                     <SortableContext items={filtered.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                      {filtered.slice(0, analyzing ? filtered.length : visibleCount).map((track, i) => (
+                      {filtered.slice(0, visibleCount).map((track, i) => (
                         <SortableTrackRow
                           key={track.id}
                           track={track}
                           index={i + 1}
+                          isLoading={loadingTrackId === track.id}
                           onPreview={setPreviewTrack}
                           onPlay={(t) => {
                             setPreviewTrack(t)
