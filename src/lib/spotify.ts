@@ -71,43 +71,34 @@ export async function getPlaylistTracks(accessToken: string, playlistId: string)
   return tracks
 }
 
-// Fetch BPM using Deezer API — completely free, no API key required
+// Fetch BPM using ReccoBeats API — completely free, no API key, uses Spotify track IDs directly
 export async function getAudioFeatures(accessToken: string, trackIds: string[], tracks?: any[]) {
   if (!tracks?.length) return trackIds.map(() => null)
 
   const features = await Promise.all(
     tracks.map(async (track) => {
       try {
-        const artist = track.artists?.[0]?.name ?? ''
-        const title = track.name ?? ''
-        const query = encodeURIComponent(`${title} ${artist}`)
-
-        // Step 1: Search Deezer for the track
-        const searchRes = await fetch(
-          `https://api.deezer.com/search/track?q=${query}&limit=1`
+        const res = await fetch(
+          `https://api.reccobeats.com/v1/track/${track.id}/audio-features`
         )
-        const searchData = await searchRes.json()
-        const deezerTrackId = searchData?.data?.[0]?.id
 
-        if (!deezerTrackId) {
-          console.log('[deezer] no match for', title)
+        if (!res.ok) {
+          console.log('[reccobeats] no data for', track.name, res.status)
           return null
         }
 
-        // Step 2: Get full track details which includes BPM
-        const trackRes = await fetch(`https://api.deezer.com/track/${deezerTrackId}`)
-        const trackData = await trackRes.json()
-        const bpm = trackData?.bpm
+        const data = await res.json()
+        const tempo = data?.tempo
 
-        if (bpm && bpm > 0) {
-          console.log('[deezer] BPM for', title, ':', bpm)
-          return { id: track.id, tempo: Math.round(bpm), energy: 0.5 }
+        if (tempo && tempo > 0) {
+          console.log('[reccobeats] BPM for', track.name, ':', Math.round(tempo))
+          return { id: track.id, tempo: Math.round(tempo), energy: data.energy ?? 0.5 }
         }
 
-        console.log('[deezer] no BPM for', title)
+        console.log('[reccobeats] no BPM for', track.name)
         return null
       } catch (e) {
-        console.warn('[deezer] failed for', track.name, e)
+        console.warn('[reccobeats] failed for', track.name, e)
         return null
       }
     })

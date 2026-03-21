@@ -12,10 +12,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const trackId = searchParams.get('trackId')
   const trackName = searchParams.get('trackName') ?? ''
-  const trackArtist = searchParams.get('trackArtist') ?? ''
 
-  if (!trackId || !trackName) {
-    return NextResponse.json({ error: 'trackId and trackName required' }, { status: 400 })
+  if (!trackId) {
+    return NextResponse.json({ error: 'trackId required' }, { status: 400 })
   }
 
   const zones: ZoneConfig = {
@@ -34,28 +33,22 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const query = encodeURIComponent(`${trackName} ${trackArtist}`.trim())
+    // ReccoBeats uses Spotify track IDs directly — no search step needed!
+    const res = await fetch(`https://api.reccobeats.com/v1/track/${trackId}/audio-features`)
 
-    // Step 1: Search Deezer for the track
-    const searchRes = await fetch(`https://api.deezer.com/search/track?q=${query}&limit=1`)
-    const searchData = await searchRes.json()
-    const deezerTrackId = searchData?.data?.[0]?.id
-
-    if (!deezerTrackId) {
-      console.log('[deezer] no match for', trackName)
+    if (!res.ok) {
+      console.log('[reccobeats] no data for', trackName, res.status)
       return NextResponse.json({ trackId, bpm: 0, zone: 'unmatched' })
     }
 
-    // Step 2: Get full track which includes BPM field
-    const trackRes = await fetch(`https://api.deezer.com/track/${deezerTrackId}`)
-    const trackData = await trackRes.json()
-    const bpm = Math.round(trackData?.bpm ?? 0)
+    const data = await res.json()
+    const bpm = Math.round(data?.tempo ?? 0)
 
-    console.log('[deezer] BPM for', trackName, ':', bpm)
+    console.log('[reccobeats] BPM for', trackName, ':', bpm)
     const zone = bpm > 0 ? getZone(bpm, zones) : 'unmatched'
     return NextResponse.json({ trackId, bpm, zone })
   } catch (err: any) {
-    console.error('[deezer] error:', err.message)
+    console.error('[reccobeats] error:', err.message)
     return NextResponse.json({ trackId, bpm: 0, zone: 'unmatched' })
   }
 }
