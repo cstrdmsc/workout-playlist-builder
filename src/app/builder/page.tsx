@@ -323,7 +323,7 @@ function BuilderContent() {
         console.warn('BPM fetch failed for', track.name)
       }
       // Mark this track as analyzed so it appears in the list
-      setAnalyzedIds((prev) => new Set([...prev, track.id]))
+      setAnalyzedIds((prev) => new Set(Array.from(prev).concat(track.id)))
       done++
       setAnalyzeProgress(Math.round((done / tracks.length) * 100))
     }
