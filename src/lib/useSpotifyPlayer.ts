@@ -53,6 +53,16 @@ export function useSpotifyPlayer(accessToken: string | undefined) {
         setCurrentTrackId(state.track_window?.current_track?.id ?? '')
         setPosition(state.position)
         setDuration(state.duration)
+        // Sync position from real state
+        if (!state.paused) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = setInterval(async () => {
+            const s = await spotifyPlayer.getCurrentState()
+            if (s) setPosition(s.position)
+          }, 500)
+        } else {
+          clearInterval(intervalRef.current)
+        }
       })
 
       spotifyPlayer.connect()
@@ -65,20 +75,23 @@ export function useSpotifyPlayer(accessToken: string | undefined) {
     }
   }, [accessToken])
 
-  // Track position progress
-  useEffect(() => {
-    clearInterval(intervalRef.current)
-    if (!isPaused) {
-      intervalRef.current = setInterval(() => {
-        setPosition((p) => p + 500)
-      }, 500)
-    }
-    return () => clearInterval(intervalRef.current)
-  }, [isPaused])
-
   async function playTrack(trackId: string) {
     if (!deviceId || !accessToken) return
     try {
+      // Step 1: Transfer playback to our device first
+      await fetch('https://api.spotify.com/v1/me/player', {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ device_ids: [deviceId], play: false }),
+      })
+
+      // Small delay to let transfer complete
+      await new Promise((r) => setTimeout(r, 500))
+
+      // Step 2: Now play the track
       await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
         method: 'PUT',
         headers: {

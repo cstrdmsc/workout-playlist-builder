@@ -424,6 +424,25 @@ function BuilderContent() {
         {!loading && <UnmatchedBanner count={unmatchedCount} included={includeUnmatched}
           onInclude={() => setIncludeUnmatched(true)} onExclude={() => setIncludeUnmatched(false)} />}
 
+        {/* Onboarding tip — shows when tracks loaded but none have BPM yet */}
+        {!loading && tracks.length > 0 && !analyzing && tracks.every((t) => t.bpm === 0) && (
+          <div className="flex items-center gap-4 bg-neutral-900 border border-neutral-700 border-dashed rounded-xl px-5 py-4">
+            <div className="text-2xl flex-shrink-0">⚡</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white">Detect BPM to sort your tracks</p>
+              <p className="text-xs text-neutral-500 mt-0.5">
+                Click the <span className="text-white font-medium">⚡ Detect BPM</span> button in the top right to automatically analyze each track and sort them into Warmup, Peak, and Cooldown zones.
+              </p>
+            </div>
+            <button
+              onClick={handleDetectBpm}
+              className="flex-shrink-0 bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold text-sm px-4 py-2 rounded-full transition-colors"
+            >
+              Detect BPM
+            </button>
+          </div>
+        )}
+
         <div>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h3 className="text-xs font-medium text-neutral-500 uppercase tracking-widest">
@@ -478,7 +497,10 @@ function BuilderContent() {
 
       <footer className="text-center py-6">
         <p className="text-xs text-neutral-700">
-          BPM data powered by <a href="https://deezer.com" target="_blank" rel="noopener noreferrer" className="hover:text-neutral-500 underline">Deezer</a>
+          BPM data powered by{' '}
+          <a href="https://deezer.com" target="_blank" rel="noopener noreferrer" className="hover:text-neutral-500 underline">Deezer</a>
+          {' '}and{' '}
+          <a href="https://essentia.upf.edu" target="_blank" rel="noopener noreferrer" className="hover:text-neutral-500 underline">Essentia</a>
         </p>
       </footer>
     </main>
