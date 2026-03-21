@@ -572,6 +572,8 @@ function BuilderContent() {
           </button>
         </div>
       )}
+
+      {previewTrack && (
         <SpotifyPlayer
           track={previewTrack}
           accessToken={session?.accessToken ?? ''}
