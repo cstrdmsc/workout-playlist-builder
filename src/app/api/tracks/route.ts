@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     if (err.message?.includes('403')) {
       return NextResponse.json({
-        error: "Can't access this playlist. You can only sort playlists you own or you can make a copy of this playlist.",
+        error: "Can't access this playlist. You can only sort playlists you own. To fix this, you can make a copy of this playlist.",
       }, { status: 403 })
     }
 

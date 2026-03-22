@@ -312,6 +312,7 @@ function BuilderContent() {
   const [loadingTrackId, setLoadingTrackId] = useState<string>('')
   const [analyzedIds, setAnalyzedIds] = useState<Set<string>>(new Set())
   const [customName, setCustomName] = useState('')
+  const [showSaveModal, setShowSaveModal] = useState(false)
 
   // Set default custom name when playlistName and activeFilter are known
   useEffect(() => {
@@ -519,19 +520,20 @@ function BuilderContent() {
               ) : <><span>⚡</span><span className="hidden sm:inline"> Detect BPM</span></>}
             </button>
           )}
-          {!loading && tracks.length > 0 && !filtered.every((t) => t.bpm === 0) && (
-            <input
-              type="text"
-              value={customName}
-              onChange={(e) => setCustomName(e.target.value)}
-              placeholder="Playlist name..."
-              className="hidden sm:block bg-neutral-800 border border-neutral-700 rounded-full px-4 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500 w-48 transition-colors"
-            />
-          )}
-          <button onClick={handleSave}
+          <button
+            onClick={() => {
+              const nameMap: Record<string, string> = {
+                all: `${playlistName} — BPM sorted`,
+                warmup: `${playlistName} — Warmup`,
+                peak: `${playlistName} — Peak`,
+                cooldown: `${playlistName} — Cooldown`,
+              }
+              setCustomName(nameMap[activeFilter])
+              setShowSaveModal(true)
+            }}
             disabled={saving || loading || analyzing || tracks.length === 0 || filtered.length === 0 || filtered.every((t) => t.bpm === 0)}
             className="bg-[#1DB954] hover:bg-[#1ed760] disabled:opacity-40 disabled:cursor-not-allowed text-black font-semibold text-xs sm:text-sm px-3 sm:px-5 py-2 rounded-full transition-colors">
-            {saving ? 'Saving...' : activeFilter === 'all' ? 'Save all' : `Save ${activeFilter}`}
+            {activeFilter === 'all' ? 'Save all' : `Save ${activeFilter}`}
           </button>
         </div>
       </header>
@@ -675,6 +677,51 @@ function BuilderContent() {
           togglePlay={togglePlay}
           seek={seek}
         />
+      )}
+
+      {/* Save modal */}
+      {showSaveModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowSaveModal(false) }}
+        >
+          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 w-full max-w-md mx-4 space-y-5">
+            <div>
+              <h2 className="text-base font-semibold text-white">Save playlist</h2>
+              <p className="text-xs text-neutral-500 mt-1">
+                Saving {filtered.filter(t => t.bpm > 0).length} tracks to your Spotify
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs text-neutral-400">Playlist name</label>
+              <input
+                type="text"
+                value={customName}
+                onChange={(e) => setCustomName(e.target.value)}
+                autoFocus
+                placeholder="Enter playlist name..."
+                className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500 transition-colors"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowSaveModal(false)}
+                className="flex-1 bg-neutral-800 hover:bg-neutral-700 text-white text-sm font-medium py-2.5 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowSaveModal(false); handleSave() }}
+                disabled={saving || !customName.trim()}
+                className="flex-1 bg-[#1DB954] hover:bg-[#1ed760] disabled:opacity-40 text-black font-semibold text-sm py-2.5 rounded-xl transition-colors"
+              >
+                {saving ? 'Saving...' : 'Save to Spotify'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <footer className="text-center py-6">
