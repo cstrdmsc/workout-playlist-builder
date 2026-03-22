@@ -26,7 +26,7 @@ function BpmChart({ tracks, zones }: { tracks: TrackWithBpm[]; zones: ZoneConfig
     if (idx >= 0) counts[idx]++
   }
   const maxCount = Math.max(...counts, 1)
-  const pct = (bpm: number) => ((bpm - MIN) / (MAX - MIN)) * 100
+  const pct = (bpm: number) => Math.min(100, Math.max(0, ((bpm - MIN) / (MAX - MIN)) * 100))
 
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-5">
@@ -215,6 +215,25 @@ function ZoneCard({ zone, config, count, onChange }: {
 }) {
   const colors = ZONE_COLORS[zone]
   const labels = { warmup: 'Warmup', peak: 'Peak', cooldown: 'Cooldown' }
+  const [minVal, setMinVal] = useState(String(config.min))
+  const [maxVal, setMaxVal] = useState(String(config.max))
+
+  // Sync if parent changes
+  useEffect(() => { setMinVal(String(config.min)) }, [config.min])
+  useEffect(() => { setMaxVal(String(config.max)) }, [config.max])
+
+  function commitMin(val: string) {
+    const n = Math.min(220, Math.max(40, parseInt(val) || 40))
+    setMinVal(String(n))
+    onChange(n, config.max)
+  }
+
+  function commitMax(val: string) {
+    const n = Math.min(220, Math.max(40, parseInt(val) || 220))
+    setMaxVal(String(n))
+    onChange(config.min, n)
+  }
+
   return (
     <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 space-y-3">
       <div className="flex items-center gap-2">
@@ -224,13 +243,25 @@ function ZoneCard({ zone, config, count, onChange }: {
       <div className="space-y-2">
         <label className="text-xs text-neutral-500">BPM range</label>
         <div className="flex items-center gap-2">
-          <input type="number" value={config.min} min={60} max={220}
-            onChange={(e) => onChange(Number(e.target.value), config.max)}
-            className="w-16 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:border-neutral-500" />
+          <input
+            type="text"
+            inputMode="numeric"
+            value={minVal}
+            onChange={(e) => setMinVal(e.target.value.replace(/\D/g, ''))}
+            onBlur={(e) => commitMin(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && commitMin(minVal)}
+            className="w-16 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:border-neutral-500"
+          />
           <span className="text-neutral-600 text-xs">–</span>
-          <input type="number" value={config.max} min={60} max={220}
-            onChange={(e) => onChange(config.min, Number(e.target.value))}
-            className="w-16 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:border-neutral-500" />
+          <input
+            type="text"
+            inputMode="numeric"
+            value={maxVal}
+            onChange={(e) => setMaxVal(e.target.value.replace(/\D/g, ''))}
+            onBlur={(e) => commitMax(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && commitMax(maxVal)}
+            className="w-16 bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-1 text-sm text-center focus:outline-none focus:border-neutral-500"
+          />
         </div>
       </div>
       <p className="text-xs text-neutral-500"><span className="text-white font-medium">{count}</span> tracks matched</p>
