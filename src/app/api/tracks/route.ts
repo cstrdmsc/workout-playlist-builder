@@ -44,7 +44,14 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ tracks: sorted, zones })
   } catch (err: any) {
-    console.error('[tracks] error:', err.message, err.stack)
-    return NextResponse.json({ error: err.message, detail: err.stack }, { status: 500 })
+    console.error('[tracks] error:', err.message)
+
+    if (err.message?.includes('403')) {
+      return NextResponse.json({
+        error: "Can't access this playlist. You can only sort playlists you own. To fix this: open Spotify → right-click the playlist → Add to profile (or Make a copy) → then sort your copy here.",
+      }, { status: 403 })
+    }
+
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
