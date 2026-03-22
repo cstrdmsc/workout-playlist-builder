@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     if (err.message?.includes('403')) {
       return NextResponse.json({
-        error: "Can't access this playlist. You can only sort playlists you own. To fix this: open Spotify → right-click the playlist → Add to profile (or Make a copy) → then sort your copy here.",
+        error: "Can't access this playlist. You can only sort playlists you own or you can make a copy of this playlist.",
       }, { status: 403 })
     }
 

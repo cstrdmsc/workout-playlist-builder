@@ -311,6 +311,18 @@ function BuilderContent() {
   const [visibleCount, setVisibleCount] = useState(20)
   const [loadingTrackId, setLoadingTrackId] = useState<string>('')
   const [analyzedIds, setAnalyzedIds] = useState<Set<string>>(new Set())
+  const [customName, setCustomName] = useState('')
+
+  // Set default custom name when playlistName and activeFilter are known
+  useEffect(() => {
+    const nameMap: Record<string, string> = {
+      all: `${playlistName} — BPM sorted`,
+      warmup: `${playlistName} — Warmup`,
+      peak: `${playlistName} — Peak`,
+      cooldown: `${playlistName} — Cooldown`,
+    }
+    setCustomName(nameMap[activeFilter])
+  }, [playlistName, activeFilter])
 
   async function handleDetectBpm() {
     if (!playlistId || analyzing) return
@@ -425,7 +437,7 @@ function BuilderContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: nameMap[activeFilter],
+          name: customName.trim() || nameMap[activeFilter],
           description: descMap[activeFilter],
           trackUris: saveTracks.map((t) => `spotify:track:${t.id}`),
         }),
@@ -506,6 +518,15 @@ function BuilderContent() {
                 <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /><span className="hidden sm:inline">Analyzing…</span> {analyzeProgress}%</>
               ) : <><span>⚡</span><span className="hidden sm:inline"> Detect BPM</span></>}
             </button>
+          )}
+          {!loading && tracks.length > 0 && !filtered.every((t) => t.bpm === 0) && (
+            <input
+              type="text"
+              value={customName}
+              onChange={(e) => setCustomName(e.target.value)}
+              placeholder="Playlist name..."
+              className="hidden sm:block bg-neutral-800 border border-neutral-700 rounded-full px-4 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500 w-48 transition-colors"
+            />
           )}
           <button onClick={handleSave}
             disabled={saving || loading || analyzing || tracks.length === 0 || filtered.length === 0 || filtered.every((t) => t.bpm === 0)}
