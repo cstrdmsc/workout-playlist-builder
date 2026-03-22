@@ -54,7 +54,7 @@ export async function getUserPlaylists(accessToken: string) {
 // Fetch all tracks in a playlist using the user's access token
 export async function getPlaylistTracks(accessToken: string, playlistId: string) {
   const tracks: any[] = []
-  let url = `/playlists/${playlistId}/items?limit=100&market=PH`
+  let url = `/playlists/${playlistId}/items?limit=100`
 
   while (url) {
     const data = await spotifyFetch(url, accessToken)
